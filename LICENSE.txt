@@ -1,0 +1,69 @@
+GNU GENERAL PUBLIC LICENSE
+Version 3, 29 June 2007
+
+VOR / ASRACS / SAAF Airport Monitoring System v5.2
+Copyright (C) 2026 South African Air Force (SAAF) / Aviation Systems
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+========================================================================
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+========================================================================
+
+DEPENDENCY LICENSES:
+
+1. PyQt5 - GNU General Public License v3.0
+   https://www.riverbankcomputing.com/software/pyqt/
+
+2. PyOpenGL - BSD License
+   https://github.com/mcfletch/PyOpenGL
+
+3. NumPy - BSD License
+   https://numpy.org/
+
+4. PyYAML - MIT License
+   https://pyyaml.org/
+
+5. pyserial - BSD License
+   https://github.com/pyserial/pyserial
+
+6. PyInstaller - GNU General Public License v2.0
+   https://www.pyinstaller.org/
+
+========================================================================
+
+USE AT YOUR OWN RISK:
+
+This software is provided for monitoring, simulation, and educational
+purposes only. Users assume all responsibility for proper operation,
+calibration, and integration with real aviation systems. Operators must
+follow all applicable South African Civil Aviation Regulations (SCAR) and
+ICAO standards.
+
+This software does NOT constitute an approved navigation aid and must NOT
+be used as a primary navigation source for actual flight operations without
+proper certification and validation.
+
+========================================================================
+
+For questions or licensing inquiries, contact:
+schalkpieterse76@gmail.com

@@ -1,0 +1,315 @@
+# VOR / ASRACS / SAAF Airport Monitoring System v5.2
+# Configuration File - VOR Station Database
+# 
+# This file is auto-generated with default values.
+# Edit to customize VOR stations, frequencies, and airport data.
+#
+# Last Generated: 2026-01-01
+
+airports:
+  JNB:
+    elevation: 1623
+    latitude: -25.5967
+    longitude: 28.2394
+    name: OR Tambo International
+  CPT:
+    elevation: 47
+    latitude: -33.9648
+    longitude: 18.6017
+    name: Cape Town International
+  DUR:
+    elevation: 110
+    latitude: -29.6144
+    longitude: 31.1197
+    name: King Shaka International
+  FAWK:
+    elevation: 1506
+    latitude: -25.8300
+    longitude: 28.2225
+    name: AFB Waterkloof
+  FALM:
+    elevation: 1524
+    latitude: -23.1600
+    longitude: 29.6967
+    name: AFB Makhado
+  FAHS:
+    elevation: 479
+    latitude: -24.3547
+    longitude: 31.0503
+    name: AFB Hoedspruit
+  FALW:
+    elevation: 46
+    latitude: -32.9689
+    longitude: 18.1653
+    name: AFB Langebaanweg
+  FAOB:
+    elevation: 52
+    latitude: -34.5547
+    longitude: 20.2506
+    name: AFB Overberg
+  FASK:
+    elevation: 1519
+    latitude: -25.8069
+    longitude: 28.1644
+    name: AFB Swartkop
+  FABL:
+    elevation: 1354
+    latitude: -29.0939
+    longitude: 26.3039
+    name: AFB Bloemspruit
+  FAYP:
+    elevation: 15
+    latitude: -33.9011
+    longitude: 18.4833
+    name: AFB Ysterplaat
+  FADN:
+    elevation: 89
+    latitude: -29.9686
+    longitude: 30.9478
+    name: AFB Durban
+  FAPE:
+    elevation: 58
+    latitude: -33.9850
+    longitude: 25.6103
+    name: AFS Port Elizabeth
+
+vor_stations:
+  JNB_VOR:
+    airport: JNB
+    channel: 96
+    frequency: 114.90
+    ident: JHB
+    ils_available: true
+    ils_runways:
+      - frequency: 110.30
+        glide_slope_deg: 3.0
+        ident: IJB
+        runway: '03L'
+    latitude: -25.5967
+    longitude: 28.2394
+    name: OR Tambo VOR/DME
+    ndb_freq: null
+    ndb_ident: ''
+    remarks: OR Tambo approach VOR. Primary Johannesburg area navaid.
+    type: VOR/DME
+    vor_available: true
+  CPT_VOR:
+    airport: CPT
+    channel: 104
+    frequency: 115.70
+    ident: CTV
+    ils_available: true
+    ils_runways:
+      - frequency: 110.90
+        glide_slope_deg: 3.0
+        ident: ICT
+        runway: '02'
+    latitude: -33.9648
+    longitude: 18.6017
+    name: Cape Town VORTAC
+    ndb_freq: null
+    ndb_ident: ''
+    remarks: Cape Town approach VOR. Also serves AFB Ysterplaat.
+    type: VORTAC
+    vor_available: true
+  DUR_VOR:
+    airport: DUR
+    channel: 72
+    frequency: 112.50
+    ident: DNV
+    ils_available: true
+    ils_runways:
+      - frequency: 109.70
+        glide_slope_deg: 3.0
+        ident: IDN
+        runway: '06'
+    latitude: -29.6144
+    longitude: 31.1197
+    name: Durban VOR/DME
+    ndb_freq: 393
+    ndb_ident: DU
+    remarks: King Shaka / Durban area VOR. Also serves AFB Durban.
+    type: VOR/DME
+    vor_available: true
+  FAWK_VOR:
+    airport: FAWK
+    channel: 116
+    frequency: 116.90
+    ident: WKV
+    ils_available: true
+    ils_runways:
+      - frequency: 111.50
+        glide_slope_deg: 3.0
+        ident: IWK
+        runway: '01'
+    latitude: -25.8300
+    longitude: 28.2225
+    name: Waterkloof VORTAC
+    ndb_freq: 315
+    ndb_ident: WK
+    remarks: Primary SAAF strategic base. Serves Waterkloof & Swartkop. ILS RWY 01. TWR 118.1.
+    type: VORTAC
+    vor_available: true
+  FALM_VOR:
+    airport: FALM
+    channel: 97
+    frequency: 115.00
+    ident: LTV
+    ils_available: true
+    ils_runways:
+      - frequency: 110.10
+        glide_slope_deg: 3.0
+        ident: ILM
+        runway: '10'
+      - frequency: 111.30
+        glide_slope_deg: 3.0
+        ident: ILM2
+        runway: '28'
+    latitude: -23.1600
+    longitude: 29.6967
+    name: Makhado VOR/DME
+    ndb_freq: 457
+    ndb_ident: MK
+    remarks: Fighter base. Gripen & Hawk. RWY 10/28 x 4020m. ILS both ends. TWR 118.3.
+    type: VOR/DME
+    vor_available: true
+  FAHS_VOR:
+    airport: FAHS
+    channel: 87
+    frequency: 114.00
+    ident: HSV
+    ils_available: true
+    ils_runways:
+      - frequency: 109.50
+        glide_slope_deg: 3.0
+        ident: IHS
+        runway: '09'
+    latitude: -24.3547
+    longitude: 31.0503
+    name: Hoedspruit VOR/DME
+    ndb_freq: 265
+    ndb_ident: HA
+    remarks: Rooivalk attack helicopter base. RWY 09/27 x 3991m. ILS RWY 09. TWR 118.5.
+    type: VOR/DME
+    vor_available: true
+  FALW_VOR:
+    airport: FALW
+    channel: 117
+    frequency: 117.00
+    ident: LWV
+    ils_available: false
+    ils_runways: []
+    latitude: -32.9689
+    longitude: 18.1653
+    name: Langebaanweg VORTAC
+    ndb_freq: 345
+    ndb_ident: LW
+    remarks: Pilot training base. PC-7 Mk II. RWY 01/19 x 2430m. TWR 118.7.
+    type: VORTAC
+    vor_available: true
+  FAOB_VOR:
+    airport: FAOB
+    channel: 101
+    frequency: 115.40
+    ident: OBV
+    ils_available: true
+    ils_runways:
+      - frequency: 110.50
+        glide_slope_deg: 3.0
+        ident: IOB
+        runway: '35'
+    latitude: -34.5547
+    longitude: 20.2506
+    name: Overberg VOR/DME
+    ndb_freq: 428
+    ndb_ident: OB
+    remarks: Test & Eval (TFDC). UAV & weapons. RWY 17/35 x 3115m. ILS RWY 35. Restricted R105.
+    type: VOR/DME
+    vor_available: true
+  FASK_VOR:
+    airport: FASK
+    channel: 116
+    frequency: 116.90
+    ident: WKV
+    ils_available: false
+    ils_runways: []
+    latitude: -25.8069
+    longitude: 28.1644
+    name: Swartkop NDB / WKV
+    ndb_freq: 390
+    ndb_ident: SK
+    remarks: Historic SAAF Museum base. Uses Waterkloof VORTAC WKV. NDB SK 390 kHz. TWR 118.1.
+    type: VORTAC
+    vor_available: true
+  FABL_VOR:
+    airport: FABL
+    channel: 88
+    frequency: 114.10
+    ident: BLV
+    ils_available: true
+    ils_runways:
+      - frequency: 109.90
+        glide_slope_deg: 3.0
+        ident: IBL
+        runway: '20'
+    latitude: -29.0939
+    longitude: 26.3039
+    name: Bloemfontein VOR/DME
+    ndb_freq: 380
+    ndb_ident: BL
+    remarks: Shared civil/military. Co-located Bram Fischer Airport. ILS RWY 20. TWR 118.1.
+    type: VOR/DME
+    vor_available: true
+  FAYP_VOR:
+    airport: FAYP
+    channel: 104
+    frequency: 115.70
+    ident: CTV
+    ils_available: false
+    ils_runways: []
+    latitude: -33.9011
+    longitude: 18.4833
+    name: Ysterplaat NDB / CTV
+    ndb_freq: 284
+    ndb_ident: YP
+    remarks: Maritime patrol & SAR. Uses Cape Town VORTAC CTV. NDB YP 284 kHz. TWR 118.1.
+    type: VORTAC
+    vor_available: true
+  FADN_VOR:
+    airport: FADN
+    channel: 72
+    frequency: 112.50
+    ident: DNV
+    ils_available: true
+    ils_runways:
+      - frequency: 109.70
+        glide_slope_deg: 3.0
+        ident: IDN
+        runway: '06'
+    latitude: -29.9686
+    longitude: 30.9478
+    name: AFB Durban VOR/DME
+    ndb_freq: 393
+    ndb_ident: DU
+    remarks: Maritime patrol base KZN. Shares Durban VOR DNV. ILS RWY 06. TWR 118.1.
+    type: VOR/DME
+    vor_available: true
+  FAPE_VOR:
+    airport: FAPE
+    channel: 81
+    frequency: 113.40
+    ident: PEV
+    ils_available: true
+    ils_runways:
+      - frequency: 110.70
+        glide_slope_deg: 3.0
+        ident: IPE
+        runway: '08'
+    latitude: -33.9850
+    longitude: 25.6103
+    name: Port Elizabeth AFS VOR
+    ndb_freq: 330
+    ndb_ident: PE
+    remarks: AFS Port Elizabeth. Helicopter & liaison. Shares PE Airport. TWR 118.1.
+    type: VOR/DME
+    vor_available: true
