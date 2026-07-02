@@ -58,6 +58,9 @@ logger = logging.getLogger(__name__)
 STANDARD_GLIDE_SLOPE_DEG = 3.0
 KM_PER_NM = 1.852
 M_PER_KM = 1000.0
+FT_PER_NM = 6076.12
+FT_PER_M = 3.28084
+DESCENT_RATE_FACTOR = 101.27
 APPROACH_GUIDE_PIXELS = 110
 MAX_LOCALIZER_DOTS = 2.5
 FULL_SCALE_LOCALIZER_DEG = 5.0
@@ -73,7 +76,7 @@ class GlideSlopeDetector:
     def ideal_altitude_ft(self, distance_nm: float, runway_elev_ft: float) -> float:
         if distance_nm <= 0:
             return runway_elev_ft
-        return runway_elev_ft + math.tan(math.radians(self.glide_slope_deg)) * distance_nm * 6076.12
+        return runway_elev_ft + math.tan(math.radians(self.glide_slope_deg)) * distance_nm * FT_PER_NM
 
     def calculate_glide_slope_error(self, altitude_ft: float, distance_nm: float,
                                     runway_elev_ft: float) -> float:
@@ -85,7 +88,7 @@ class GlideSlopeDetector:
             altitude_ft, distance_nm, runway_elev_ft)) <= tolerance_ft
 
     def descent_rate_fpm(self, groundspeed_kt: float) -> float:
-        return groundspeed_kt * 101.27 * math.tan(math.radians(self.glide_slope_deg))
+        return groundspeed_kt * DESCENT_RATE_FACTOR * math.tan(math.radians(self.glide_slope_deg))
 
 
 class SurfaceSlopeAnalyzer:
@@ -2334,7 +2337,7 @@ class VORAirportMonitorApp(QMainWindow):
         loc_deg = self._course_delta_deg(inbound, bearing)
         loc_scale = FULL_SCALE_LOCALIZER_DEG / MAX_LOCALIZER_DOTS
         loc_dots = max(-MAX_LOCALIZER_DOTS, min(MAX_LOCALIZER_DOTS, loc_deg / loc_scale))
-        runway_elev_ft = base['elevation'] * 3.28084
+        runway_elev_ft = base['elevation'] * FT_PER_M
         gs_error = self.glide_slope_detector.calculate_glide_slope_error(
             ac.altitude, dist_nm, runway_elev_ft)
         gs_state = "ON GS" if self.glide_slope_detector.is_on_profile(
