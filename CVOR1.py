@@ -56,6 +56,11 @@ logger = logging.getLogger(__name__)
 
 
 STANDARD_GLIDE_SLOPE_DEG = 3.0
+KM_PER_NM = 1.852
+M_PER_KM = 1000.0
+APPROACH_GUIDE_PIXELS = 110
+MAX_LOCALIZER_DOTS = 2.5
+FULL_SCALE_LOCALIZER_DEG = 5.0
 
 
 # ===========================================================================
@@ -159,7 +164,7 @@ def _build_vor_stations() -> Dict:
             ils_runways=[
                 dict(runway='10', frequency=110.10, ident='ILM',
                      glide_slope_deg=STANDARD_GLIDE_SLOPE_DEG),
-                dict(runway='28', frequency=111.30, ident='ILM',
+                dict(runway='28', frequency=111.30, ident='ILM2',
                      glide_slope_deg=STANDARD_GLIDE_SLOPE_DEG),
             ],
             remarks='Fighter base. Gripen & Hawk. RWY 10/28 x 4020m. ILS both ends. TWR 118.3.',
@@ -288,7 +293,7 @@ SAAF_BASES = {
         ils_runways=[
             dict(runway='10', frequency=110.10, ident='ILM',
                  glide_slope_deg=STANDARD_GLIDE_SLOPE_DEG),
-            dict(runway='28', frequency=111.30, ident='ILM',
+            dict(runway='28', frequency=111.30, ident='ILM2',
                  glide_slope_deg=STANDARD_GLIDE_SLOPE_DEG),
         ],
         squadrons=['2 Sqn (Gripen)', '85 CFS (Hawk)'],
@@ -513,7 +518,7 @@ def _merge_defaults(default, loaded):
                 merged[k] = v
         return merged
     if isinstance(default, list):
-        return loaded if isinstance(loaded, list) and loaded else list(default)
+        return loaded if isinstance(loaded, list) else list(default)
     return default if loaded is None else loaded
 
 
@@ -581,13 +586,17 @@ class VORAirportConfig:
             if Path(self.config_file).exists():
                 with open(self.config_file) as f:
                     cfg = yaml.safe_load(f) or {}
+                loaded_airports = cfg.get('airports', {})
                 loaded = cfg.get('vor_stations', {})
                 # Rebuild defaults if any entry is missing the 'name' key
-                if loaded and all('name' in v for v in loaded.values()):
-                    self.airports = _merge_defaults(default_airports, cfg.get('airports', {}))
+                if (loaded and all('name' in v for v in loaded.values()) and
+                        (not loaded_airports or all('name' in v for v in loaded_airports.values()))):
+                    self.airports = _merge_defaults(default_airports, loaded_airports)
                     self.vor_stations = _merge_defaults(default_stations, loaded)
                     logger.info(f"Config loaded from {self.config_file}")
-                    self.save_config()
+                    if self.airports != loaded_airports or self.vor_stations != loaded:
+                        logger.info("Config merged with latest VOR/ILS defaults")
+                        self.save_config()
                     return
             self._defaults()
         except Exception as e:
@@ -1552,6 +1561,10 @@ class Terrain3DWidget(QOpenGLWidget):
         self._heights=None; self._slopes=None; self._aircraft=[]; self._q=None
 
     def set_vor_pos(self,lat,lon): self.VOR_LAT=lat; self.VOR_LON=lon
+    def terrain_profile(self):
+        if self._heights is None:
+            return None
+        return [float(v) for v in self._heights[self.GRID // 2]]
 
     def initializeGL(self):
         glEnable(GL_DEPTH_TEST); glEnable(GL_LIGHTING); glEnable(GL_LIGHT0)
@@ -1848,7 +1861,10 @@ class CDIDisplay(QWidget):
 # ===========================================================================
 class ApproachGuidanceDisplay(QWidget):
     def __init__(self):
-        super().__init__(); self.aircraft=None; self.guidance={}; self.setMinimumHeight(280)
+        super().__init__()
+        self.aircraft = None
+        self.guidance = {}
+        self.setMinimumHeight(280)
     def set_aircraft(self,ac): self.aircraft=ac; self.update()
     def set_guidance(self,info): self.guidance=info or {}; self.update()
     def paintEvent(self,event):
@@ -1859,7 +1875,7 @@ class ApproachGuidanceDisplay(QWidget):
         p.setPen(QPen(Qt.white,2))
         for i in range(0,rw,40): p.drawLine(rx+i,ry+20,rx+i+20,ry+20)
         p.setPen(QPen(QColor(0,120,255),2,Qt.DashLine))
-        p.drawLine(rx+rw//2,ry,rx+rw//2,int(ry-110))
+        p.drawLine(rx+rw//2,ry,rx+rw//2,int(ry-APPROACH_GUIDE_PIXELS))
         if self.aircraft:
             pnm=(h-ry-60)/10; sx=rx+rw//2; sy=ry
             p.setPen(QPen(QColor(0,140,0),2)); p.drawLine(sx,sy,sx,int(sy-5*pnm))
@@ -2232,7 +2248,7 @@ class VORAirportMonitorApp(QMainWindow):
         dlat, dlon = la2 - la1, lo2 - lo1
         a = (math.sin(dlat/2)**2 +
              math.cos(la1) * math.cos(la2) * math.sin(dlon/2)**2)
-        dist_nm = r_km * 2 * math.asin(math.sqrt(max(0, a))) / 1.852
+        dist_nm = r_km * 2 * math.asin(math.sqrt(max(0, a))) / KM_PER_NM
         y = math.sin(dlon) * math.cos(la2)
         x = math.cos(la1) * math.sin(la2) - math.sin(la1) * math.cos(la2) * math.cos(dlon)
         brg = (math.degrees(math.atan2(y, x)) + 360) % 360
@@ -2254,12 +2270,12 @@ class VORAirportMonitorApp(QMainWindow):
         self.rwy_combo.clear()
         base = SAAF_BASES.get(self._current_base_icao)
         if base:
+            ils_by_end = {rw.get('runway'): rw for rw in base.get('ils_runways', [])}
             for rwy in base.get('runways', []):
-                ils = [v.strip() for v in str(rwy.get('ils', 'None')).split('&')
-                       if v.strip() and v.strip() != 'None']
+                ils = [end for end in rwy['designation'].split('/') if end in ils_by_end]
                 if ils:
                     for ils_end in ils:
-                        data = dict(rwy); data['_ils_end'] = ils_end
+                        data = {**rwy, '_ils_end': ils_end}
                         self.rwy_combo.addItem(f"{rwy['designation']}  ·  ILS {ils_end}",
                                                userData=data)
                 else:
@@ -2276,20 +2292,21 @@ class VORAirportMonitorApp(QMainWindow):
             self._update_approach_guidance()
             return
         desigs = rwy['designation'].split('/')
-        ils_end = rwy.get('_ils_end') or str(rwy.get('ils', 'None')).split('&')[0].strip()
-        if ils_end == 'None':
-            inbound = rwy['true_hdg_lo']
-        else:
-            inbound = rwy['true_hdg_lo'] if ils_end == desigs[0] else rwy['true_hdg_hi']
+        ils_end = rwy.get('_ils_end') or desigs[0]
+        inbound = rwy['true_hdg_lo'] if ils_end == desigs[0] else rwy['true_hdg_hi']
         self.rwy_hdg_lbl.setText(f"{int(inbound):03d}°")
         self._update_approach_guidance()
 
     def _terrain_profile(self):
-        if not hasattr(self, 'terrain3d') or self.terrain3d._heights is None:
+        if not hasattr(self, 'terrain3d'):
             return None
-        row = self.terrain3d._heights[self.terrain3d.GRID // 2]
-        spacing = (self.terrain3d.SIZE / self.terrain3d.GRID) * 1000.0
-        return self.surface_slope_analyzer.analyze_profile([float(v) for v in row], spacing)
+        row = self.terrain3d.terrain_profile()
+        if row is None:
+            return None
+        if not self.terrain3d.GRID:
+            return None
+        spacing = (self.terrain3d.SIZE / self.terrain3d.GRID) * M_PER_KM
+        return self.surface_slope_analyzer.analyze_profile(row, spacing)
 
     def _update_approach_guidance(self):
         if not hasattr(self, 'approach'):
@@ -2307,15 +2324,16 @@ class VORAirportMonitorApp(QMainWindow):
             return
         base = SAAF_BASES[self._current_base_icao]
         desigs = rwy['designation'].split('/')
-        ils_end = rwy.get('_ils_end') or str(rwy.get('ils', 'None')).split('&')[0].strip()
-        runway_label = desigs[0] if ils_end == 'None' else ils_end
-        use_lo = ils_end == 'None' or ils_end == desigs[0]
+        ils_end = rwy.get('_ils_end') or desigs[0]
+        runway_label = ils_end
+        use_lo = ils_end == desigs[0]
         thr_lat = rwy['thr_lo_lat'] if use_lo else rwy['thr_hi_lat']
         thr_lon = rwy['thr_lo_lon'] if use_lo else rwy['thr_hi_lon']
         inbound = rwy['true_hdg_lo'] if use_lo else rwy['true_hdg_hi']
         dist_nm, bearing = self._distance_and_bearing_nm(ac.latitude, ac.longitude, thr_lat, thr_lon)
         loc_deg = self._course_delta_deg(inbound, bearing)
-        loc_dots = max(-2.5, min(2.5, loc_deg / 2.5))
+        loc_scale = FULL_SCALE_LOCALIZER_DEG / MAX_LOCALIZER_DOTS
+        loc_dots = max(-MAX_LOCALIZER_DOTS, min(MAX_LOCALIZER_DOTS, loc_deg / loc_scale))
         runway_elev_ft = base['elevation'] * 3.28084
         gs_error = self.glide_slope_detector.calculate_glide_slope_error(
             ac.altitude, dist_nm, runway_elev_ft)
@@ -2329,7 +2347,8 @@ class VORAirportMonitorApp(QMainWindow):
         if hasattr(self, 'slope_lbl'):
             slope = self._terrain_profile()
             self.slope_lbl.setText(
-                f"{slope['max_slope']:.1f}% max" if slope else "---")
+                f"{slope.get('max_slope', 0.0):.1f}% max"
+                if isinstance(slope, dict) else "---")
         self.approach.set_guidance(dict(
             runway=f"RWY {runway_label}  CRS {int(inbound):03d}°",
             ils_text=("No ILS" if not ils_match else
