@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """
-VOR / ASRACS / SAAF Airport Monitoring System  v5.1
+VOR / ASRACS / SAAF Airport Monitoring System  v5.2
 =====================================================
+v5.2 Enhancements:
+  - SAAF VOR / ILS metadata for all 10 monitored bases
+  - Glide slope detection for approach guidance
+  - Surface slope analysis for terrain-aware approaches
+
 v5.1 Fixes:
   - FIXED  AttributeError: 'VORAirportMonitorApp' has no attribute 'radar'
            Root cause: _populate_vor_combo() was called inside _tab_vor()
@@ -50,6 +55,65 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+STANDARD_GLIDE_SLOPE_DEG = 3.0
+KM_PER_NM = 1.852
+M_PER_KM = 1000.0
+FT_PER_NM = 6076.12
+FT_PER_M = 3.28084
+DESCENT_RATE_FACTOR = 101.27
+APPROACH_GUIDE_PIXELS = 110
+MAX_LOCALIZER_DOTS = 2.5
+FULL_SCALE_LOCALIZER_DEG = 5.0
+
+
+# ===========================================================================
+# Glide slope / terrain helpers
+# ===========================================================================
+class GlideSlopeDetector:
+    def __init__(self, glide_slope_deg: float = STANDARD_GLIDE_SLOPE_DEG):
+        self.glide_slope_deg = glide_slope_deg
+
+    def ideal_altitude_ft(self, distance_nm: float, runway_elev_ft: float) -> float:
+        if distance_nm <= 0:
+            return runway_elev_ft
+        return runway_elev_ft + math.tan(math.radians(self.glide_slope_deg)) * distance_nm * FT_PER_NM
+
+    def calculate_glide_slope_error(self, altitude_ft: float, distance_nm: float,
+                                    runway_elev_ft: float) -> float:
+        return altitude_ft - self.ideal_altitude_ft(distance_nm, runway_elev_ft)
+
+    def is_on_profile(self, altitude_ft: float, distance_nm: float,
+                      runway_elev_ft: float, tolerance_ft: float = 200.0) -> bool:
+        return abs(self.calculate_glide_slope_error(
+            altitude_ft, distance_nm, runway_elev_ft)) <= tolerance_ft
+
+    def descent_rate_fpm(self, groundspeed_kt: float) -> float:
+        return groundspeed_kt * DESCENT_RATE_FACTOR * math.tan(math.radians(self.glide_slope_deg))
+
+
+class SurfaceSlopeAnalyzer:
+    def analyze_profile(self, heights_m: List[float], sample_spacing_m: float) -> Dict:
+        if len(heights_m) < 2 or sample_spacing_m <= 0:
+            return dict(safe=True, max_slope=0.0, avg_slope=0.0, warning='')
+        slopes = [
+            abs(heights_m[i+1] - heights_m[i]) / sample_spacing_m * 100.0
+            for i in range(len(heights_m) - 1)
+        ]
+        max_slope = max(slopes)
+        avg_slope = sum(slopes) / len(slopes)
+        warning = ''
+        if max_slope >= 8.0:
+            warning = f"CRITICAL {max_slope:.1f}%"
+        elif max_slope >= 4.0:
+            warning = f"CAUTION {max_slope:.1f}%"
+        return dict(
+            safe=max_slope < 4.0,
+            max_slope=max_slope,
+            avg_slope=avg_slope,
+            warning=warning,
+        )
+
+
 # ===========================================================================
 # VOR / Navaid Station Database
 # Every entry MUST contain: name, ident, frequency, channel, type,
@@ -62,18 +126,27 @@ def _build_vor_stations() -> Dict:
             name='OR Tambo VOR/DME', ident='JHB', frequency=114.90, channel=96,
             type='VOR/DME', airport='JNB', latitude=-25.5967, longitude=28.2394,
             ndb_freq=None, ndb_ident='',
+            vor_available=True, ils_available=True,
+            ils_runways=[dict(runway='03L', frequency=110.30, ident='IJB',
+                              glide_slope_deg=STANDARD_GLIDE_SLOPE_DEG)],
             remarks='OR Tambo approach VOR. Primary Johannesburg area navaid.',
         ),
         'CPT_VOR': dict(
             name='Cape Town VORTAC', ident='CTV', frequency=115.70, channel=104,
             type='VORTAC', airport='CPT', latitude=-33.9648, longitude=18.6017,
             ndb_freq=None, ndb_ident='',
+            vor_available=True, ils_available=True,
+            ils_runways=[dict(runway='02', frequency=110.90, ident='ICT',
+                              glide_slope_deg=STANDARD_GLIDE_SLOPE_DEG)],
             remarks='Cape Town approach VOR. Also serves AFB Ysterplaat.',
         ),
         'DUR_VOR': dict(
             name='Durban VOR/DME', ident='DNV', frequency=112.50, channel=72,
             type='VOR/DME', airport='DUR', latitude=-29.6144, longitude=31.1197,
             ndb_freq=393, ndb_ident='DU',
+            vor_available=True, ils_available=True,
+            ils_runways=[dict(runway='06', frequency=109.70, ident='IDN',
+                              glide_slope_deg=STANDARD_GLIDE_SLOPE_DEG)],
             remarks='King Shaka / Durban area VOR. Also serves AFB Durban.',
         ),
         # ═══ SAAF AIR FORCE BASES ═══════════════════════════════════════
@@ -81,60 +154,88 @@ def _build_vor_stations() -> Dict:
             name='Waterkloof VORTAC', ident='WKV', frequency=116.90, channel=116,
             type='VORTAC', airport='FAWK', latitude=-25.8300, longitude=28.2225,
             ndb_freq=315, ndb_ident='WK',
+            vor_available=True, ils_available=True,
+            ils_runways=[dict(runway='01', frequency=111.50, ident='IWK',
+                              glide_slope_deg=STANDARD_GLIDE_SLOPE_DEG)],
             remarks='Primary SAAF strategic base. Serves Waterkloof & Swartkop. ILS RWY 01. TWR 118.1.',
         ),
         'FALM_VOR': dict(
             name='Makhado VOR/DME', ident='LTV', frequency=115.00, channel=97,
             type='VOR/DME', airport='FALM', latitude=-23.1600, longitude=29.6967,
             ndb_freq=457, ndb_ident='MK',
+            vor_available=True, ils_available=True,
+            ils_runways=[
+                dict(runway='10', frequency=110.10, ident='ILM',
+                     glide_slope_deg=STANDARD_GLIDE_SLOPE_DEG),
+                dict(runway='28', frequency=111.30, ident='ILM2',
+                     glide_slope_deg=STANDARD_GLIDE_SLOPE_DEG),
+            ],
             remarks='Fighter base. Gripen & Hawk. RWY 10/28 x 4020m. ILS both ends. TWR 118.3.',
         ),
         'FAHS_VOR': dict(
             name='Hoedspruit VOR/DME', ident='HSV', frequency=114.00, channel=87,
             type='VOR/DME', airport='FAHS', latitude=-24.3547, longitude=31.0503,
             ndb_freq=265, ndb_ident='HA',
+            vor_available=True, ils_available=True,
+            ils_runways=[dict(runway='09', frequency=109.50, ident='IHS',
+                              glide_slope_deg=STANDARD_GLIDE_SLOPE_DEG)],
             remarks='Rooivalk attack helicopter base. RWY 09/27 x 3991m. ILS RWY 09. TWR 118.5.',
         ),
         'FALW_VOR': dict(
             name='Langebaanweg VORTAC', ident='LWV', frequency=117.00, channel=117,
             type='VORTAC', airport='FALW', latitude=-32.9689, longitude=18.1653,
             ndb_freq=345, ndb_ident='LW',
+            vor_available=True, ils_available=False, ils_runways=[],
             remarks='Pilot training base. PC-7 Mk II. RWY 01/19 x 2430m. TWR 118.7.',
         ),
         'FAOB_VOR': dict(
             name='Overberg VOR/DME', ident='OBV', frequency=115.40, channel=101,
             type='VOR/DME', airport='FAOB', latitude=-34.5547, longitude=20.2506,
             ndb_freq=428, ndb_ident='OB',
+            vor_available=True, ils_available=True,
+            ils_runways=[dict(runway='35', frequency=110.50, ident='IOB',
+                              glide_slope_deg=STANDARD_GLIDE_SLOPE_DEG)],
             remarks='Test & Eval (TFDC). UAV & weapons. RWY 17/35 x 3115m. ILS RWY 35. Restricted R105.',
         ),
         'FASK_VOR': dict(
             name='Swartkop NDB / WKV', ident='WKV', frequency=116.90, channel=116,
             type='VORTAC', airport='FASK', latitude=-25.8069, longitude=28.1644,
             ndb_freq=390, ndb_ident='SK',
+            vor_available=True, ils_available=False, ils_runways=[],
             remarks='Historic SAAF Museum base. Uses Waterkloof VORTAC WKV. NDB SK 390 kHz. TWR 118.1.',
         ),
         'FABL_VOR': dict(
             name='Bloemfontein VOR/DME', ident='BLV', frequency=114.10, channel=88,
             type='VOR/DME', airport='FABL', latitude=-29.0939, longitude=26.3039,
             ndb_freq=380, ndb_ident='BL',
+            vor_available=True, ils_available=True,
+            ils_runways=[dict(runway='20', frequency=109.90, ident='IBL',
+                              glide_slope_deg=STANDARD_GLIDE_SLOPE_DEG)],
             remarks='Shared civil/military. Co-located Bram Fischer Airport. ILS RWY 20. TWR 118.1.',
         ),
         'FAYP_VOR': dict(
             name='Ysterplaat NDB / CTV', ident='CTV', frequency=115.70, channel=104,
             type='VORTAC', airport='FAYP', latitude=-33.9011, longitude=18.4833,
             ndb_freq=284, ndb_ident='YP',
+            vor_available=True, ils_available=False, ils_runways=[],
             remarks='Maritime patrol & SAR. Uses Cape Town VORTAC CTV. NDB YP 284 kHz. TWR 118.1.',
         ),
         'FADN_VOR': dict(
             name='AFB Durban VOR/DME', ident='DNV', frequency=112.50, channel=72,
             type='VOR/DME', airport='FADN', latitude=-29.9686, longitude=30.9478,
             ndb_freq=393, ndb_ident='DU',
+            vor_available=True, ils_available=True,
+            ils_runways=[dict(runway='06', frequency=109.70, ident='IDN',
+                              glide_slope_deg=STANDARD_GLIDE_SLOPE_DEG)],
             remarks='Maritime patrol base KZN. Shares Durban VOR DNV. ILS RWY 06. TWR 118.1.',
         ),
         'FAPE_VOR': dict(
             name='Port Elizabeth AFS VOR', ident='PEV', frequency=113.40, channel=81,
             type='VOR/DME', airport='FAPE', latitude=-33.9850, longitude=25.6103,
             ndb_freq=330, ndb_ident='PE',
+            vor_available=True, ils_available=True,
+            ils_runways=[dict(runway='08', frequency=110.70, ident='IPE',
+                              glide_slope_deg=STANDARD_GLIDE_SLOPE_DEG)],
             remarks='AFS Port Elizabeth. Helicopter & liaison. Shares PE Airport. TWR 118.1.',
         ),
     }
@@ -164,6 +265,10 @@ SAAF_BASES = {
         city='Centurion, Pretoria', province='Gauteng',
         lat=-25.8300, lon=28.2225, elevation=1506, magnetic_var=-19,
         role='Strategic transport, VIP, SAAF HQ',
+        vor_available=True, ils_available=True,
+        vor_station=dict(ident='WKV', frequency=116.90, type='VORTAC'),
+        ils_runways=[dict(runway='01', frequency=111.50, ident='IWK',
+                          glide_slope_deg=STANDARD_GLIDE_SLOPE_DEG)],
         squadrons=['21 Sqn (C-130)', '28 Sqn (B737)', '44 Sqn (Oryx)', '60 Sqn (Agusta)'],
         runways=[
             dict(designation='01/19', true_hdg_lo=10,  true_hdg_hi=190,
@@ -186,6 +291,14 @@ SAAF_BASES = {
         city='Louis Trichardt', province='Limpopo',
         lat=-23.1600, lon=29.6967, elevation=1524, magnetic_var=-18,
         role='Fighter operations, advanced training',
+        vor_available=True, ils_available=True,
+        vor_station=dict(ident='LTV', frequency=115.00, type='VOR/DME'),
+        ils_runways=[
+            dict(runway='10', frequency=110.10, ident='ILM',
+                 glide_slope_deg=STANDARD_GLIDE_SLOPE_DEG),
+            dict(runway='28', frequency=111.30, ident='ILM2',
+                 glide_slope_deg=STANDARD_GLIDE_SLOPE_DEG),
+        ],
         squadrons=['2 Sqn (Gripen)', '85 CFS (Hawk)'],
         runways=[
             dict(designation='10/28', true_hdg_lo=100, true_hdg_hi=280,
@@ -204,6 +317,10 @@ SAAF_BASES = {
         city='Hoedspruit', province='Limpopo',
         lat=-24.3547, lon=31.0503, elevation=479, magnetic_var=-18,
         role='Helicopter ops, Rooivalk attack helicopter base',
+        vor_available=True, ils_available=True,
+        vor_station=dict(ident='HSV', frequency=114.00, type='VOR/DME'),
+        ils_runways=[dict(runway='09', frequency=109.50, ident='IHS',
+                          glide_slope_deg=STANDARD_GLIDE_SLOPE_DEG)],
         squadrons=['16 Sqn (Oryx)', '17 Sqn (Rooivalk)', '19 Sqn (Super Lynx)'],
         runways=[
             dict(designation='09/27', true_hdg_lo=90,  true_hdg_hi=270,
@@ -222,6 +339,9 @@ SAAF_BASES = {
         city='Langebaanweg', province='Western Cape',
         lat=-32.9689, lon=18.1653, elevation=46, magnetic_var=-24,
         role='Basic/advanced pilot training',
+        vor_available=True, ils_available=False,
+        vor_station=dict(ident='LWV', frequency=117.00, type='VORTAC'),
+        ils_runways=[],
         squadrons=['41 Sqn (Pilatus PC-7)', 'Central Flying School'],
         runways=[
             dict(designation='01/19', true_hdg_lo=10,  true_hdg_hi=190,
@@ -244,6 +364,10 @@ SAAF_BASES = {
         city='Bredasdorp', province='Western Cape',
         lat=-34.5547, lon=20.2506, elevation=52, magnetic_var=-25,
         role='Test & evaluation, UAV, weapons testing',
+        vor_available=True, ils_available=True,
+        vor_station=dict(ident='OBV', frequency=115.40, type='VOR/DME'),
+        ils_runways=[dict(runway='35', frequency=110.50, ident='IOB',
+                          glide_slope_deg=STANDARD_GLIDE_SLOPE_DEG)],
         squadrons=['Test Flight & Development Centre (TFDC)'],
         runways=[
             dict(designation='17/35', true_hdg_lo=170, true_hdg_hi=350,
@@ -266,6 +390,9 @@ SAAF_BASES = {
         city='Valhalla, Pretoria', province='Gauteng',
         lat=-25.8069, lon=28.1644, elevation=1519, magnetic_var=-19,
         role='Historic base, SAAF Museum, liaison',
+        vor_available=True, ils_available=False,
+        vor_station=dict(ident='WKV', frequency=116.90, type='VORTAC'),
+        ils_runways=[],
         squadrons=['SAAF Museum', '41 Sqn det'],
         runways=[
             dict(designation='02/20', true_hdg_lo=26,  true_hdg_hi=206,
@@ -288,6 +415,10 @@ SAAF_BASES = {
         city='Bloemfontein', province='Free State',
         lat=-29.0939, lon=26.3039, elevation=1354, magnetic_var=-21,
         role='Shared civil/military, transport support',
+        vor_available=True, ils_available=True,
+        vor_station=dict(ident='BLV', frequency=114.10, type='VOR/DME'),
+        ils_runways=[dict(runway='20', frequency=109.90, ident='IBL',
+                          glide_slope_deg=STANDARD_GLIDE_SLOPE_DEG)],
         squadrons=['28 Sqn det', 'ATC School'],
         runways=[
             dict(designation='02/20', true_hdg_lo=21,  true_hdg_hi=201,
@@ -310,6 +441,9 @@ SAAF_BASES = {
         city='Cape Town', province='Western Cape',
         lat=-33.9011, lon=18.4833, elevation=15, magnetic_var=-25,
         role='Maritime patrol, SAR, helicopter',
+        vor_available=True, ils_available=False,
+        vor_station=dict(ident='CTV', frequency=115.70, type='VORTAC'),
+        ils_runways=[],
         squadrons=['35 Sqn (C-47)', '22 Sqn (Super Lynx)', 'Maritime Command'],
         runways=[
             dict(designation='02/20', true_hdg_lo=19,  true_hdg_hi=199,
@@ -332,6 +466,10 @@ SAAF_BASES = {
         city='Durban', province='KwaZulu-Natal',
         lat=-29.9686, lon=30.9478, elevation=89, magnetic_var=-23,
         role='Maritime patrol, transport support, SAR',
+        vor_available=True, ils_available=True,
+        vor_station=dict(ident='DNV', frequency=112.50, type='VOR/DME'),
+        ils_runways=[dict(runway='06', frequency=109.70, ident='IDN',
+                          glide_slope_deg=STANDARD_GLIDE_SLOPE_DEG)],
         squadrons=['35 Sqn det', '15 Sqn (Oryx)'],
         runways=[
             dict(designation='06/24', true_hdg_lo=60,  true_hdg_hi=240,
@@ -354,6 +492,10 @@ SAAF_BASES = {
         city='Gqeberha (Port Elizabeth)', province='Eastern Cape',
         lat=-33.9850, lon=25.6103, elevation=58, magnetic_var=-25,
         role='Helicopter & liaison operations',
+        vor_available=True, ils_available=True,
+        vor_station=dict(ident='PEV', frequency=113.40, type='VOR/DME'),
+        ils_runways=[dict(runway='08', frequency=110.70, ident='IPE',
+                          glide_slope_deg=STANDARD_GLIDE_SLOPE_DEG)],
         squadrons=['Test Sqn det', 'Liaison Flt'],
         runways=[
             dict(designation='08/26', true_hdg_lo=80,  true_hdg_hi=260,
@@ -370,6 +512,66 @@ SAAF_BASES = {
 }
 
 
+def _merge_defaults(default, loaded):
+    if isinstance(default, dict):
+        loaded = loaded if isinstance(loaded, dict) else {}
+        merged = {k: _merge_defaults(v, loaded.get(k)) for k, v in default.items()}
+        for k, v in loaded.items():
+            if k not in merged:
+                merged[k] = v
+        return merged
+    if isinstance(default, list):
+        return loaded if isinstance(loaded, list) else list(default)
+    return default if loaded is None else loaded
+
+
+def _format_ils_runways(ils_runways: List[Dict]) -> str:
+    if not ils_runways:
+        return "No ILS"
+    return "; ".join(
+        f"RWY {rw.get('runway','--')} {rw.get('frequency',0.0):.2f} MHz GS "
+        f"{rw.get('glide_slope_deg', STANDARD_GLIDE_SLOPE_DEG):.1f}°"
+        for rw in ils_runways
+    )
+
+
+def _build_base_navaids(base: Dict) -> List[str]:
+    lines = []
+    vor = base.get('vor_station', {})
+    if base.get('vor_available') and vor:
+        lines.append(
+            f"{vor.get('type', 'VOR')} {vor.get('ident', '---')} "
+            f"{vor.get('frequency', 0.0):.2f} MHz"
+        )
+    lines.extend(
+        line for line in base.get('navaids', [])
+        if 'NDB' in line.upper() and line not in lines
+    )
+    ils = base.get('ils_runways', [])
+    if ils:
+        lines.extend(
+            f"ILS RWY {rw.get('runway', '--')}  {rw.get('frequency', 0.0):.2f} MHz  "
+            f"GS {rw.get('glide_slope_deg', STANDARD_GLIDE_SLOPE_DEG):.1f}°"
+            for rw in ils
+        )
+    elif base.get('ils_available') is False:
+        lines.append("ILS not available")
+    return lines or list(base.get('navaids', ['—']))
+
+
+def _build_base_remarks(base: Dict) -> str:
+    remarks = base.get('remarks', '')
+    vor = base.get('vor_station', {})
+    vor_txt = ("No operational VOR coverage" if not base.get('vor_available')
+               else f"VOR {vor.get('ident', '---')} {vor.get('frequency', 0.0):.2f} MHz")
+    return f"{remarks}  {vor_txt}.  {_format_ils_runways(base.get('ils_runways', []))}."
+
+
+def _build_station_remarks(st: Dict) -> str:
+    remarks = st.get('remarks', '')
+    return f"{remarks}  {_format_ils_runways(st.get('ils_runways', []))}."
+
+
 # ===========================================================================
 # Configuration
 # ===========================================================================
@@ -382,15 +584,22 @@ class VORAirportConfig:
 
     def load_config(self):
         try:
+            default_airports = _build_airports()
+            default_stations = _build_vor_stations()
             if Path(self.config_file).exists():
                 with open(self.config_file) as f:
                     cfg = yaml.safe_load(f) or {}
+                loaded_airports = cfg.get('airports', {})
                 loaded = cfg.get('vor_stations', {})
                 # Rebuild defaults if any entry is missing the 'name' key
-                if loaded and all('name' in v for v in loaded.values()):
-                    self.airports     = cfg.get('airports', {})
-                    self.vor_stations = loaded
+                if (loaded and all('name' in v for v in loaded.values()) and
+                        (not loaded_airports or all('name' in v for v in loaded_airports.values()))):
+                    self.airports = _merge_defaults(default_airports, loaded_airports)
+                    self.vor_stations = _merge_defaults(default_stations, loaded)
                     logger.info(f"Config loaded from {self.config_file}")
+                    if self.airports != loaded_airports or self.vor_stations != loaded:
+                        logger.info("Config merged with latest VOR/ILS defaults")
+                        self.save_config()
                     return
             self._defaults()
         except Exception as e:
@@ -1087,8 +1296,8 @@ class SAAFBaseInfoWidget(QWidget):
         for sq in base.get('squadrons',[]):
             item=QListWidgetItem(sq); item.setForeground(QColor(180,255,180))
             self.sq_list.addItem(item)
-        self.nav_text.setPlainText('\n'.join(base.get('navaids',['—'])))
-        self.rem_text.setPlainText(base.get('remarks',''))
+        self.nav_text.setPlainText('\n'.join(_build_base_navaids(base)))
+        self.rem_text.setPlainText(_build_base_remarks(base))
 
 
 # ===========================================================================
@@ -1355,6 +1564,10 @@ class Terrain3DWidget(QOpenGLWidget):
         self._heights=None; self._slopes=None; self._aircraft=[]; self._q=None
 
     def set_vor_pos(self,lat,lon): self.VOR_LAT=lat; self.VOR_LON=lon
+    def terrain_profile(self):
+        if self._heights is None:
+            return None
+        return [float(v) for v in self._heights[self.GRID // 2]]
 
     def initializeGL(self):
         glEnable(GL_DEPTH_TEST); glEnable(GL_LIGHTING); glEnable(GL_LIGHT0)
@@ -1650,8 +1863,13 @@ class CDIDisplay(QWidget):
 # Approach Guidance
 # ===========================================================================
 class ApproachGuidanceDisplay(QWidget):
-    def __init__(self): super().__init__(); self.aircraft=None; self.setMinimumHeight(280)
+    def __init__(self):
+        super().__init__()
+        self.aircraft = None
+        self.guidance = {}
+        self.setMinimumHeight(280)
     def set_aircraft(self,ac): self.aircraft=ac; self.update()
+    def set_guidance(self,info): self.guidance=info or {}; self.update()
     def paintEvent(self,event):
         p=QPainter(self); p.setRenderHint(QPainter.Antialiasing)
         p.fillRect(self.rect(),QColor(180,210,240))
@@ -1659,11 +1877,15 @@ class ApproachGuidanceDisplay(QWidget):
         p.setPen(QPen(Qt.black,3)); p.drawRect(rx,ry,rw,40)
         p.setPen(QPen(Qt.white,2))
         for i in range(0,rw,40): p.drawLine(rx+i,ry+20,rx+i+20,ry+20)
+        p.setPen(QPen(QColor(0,120,255),2,Qt.DashLine))
+        p.drawLine(rx+rw//2,ry,rx+rw//2,int(ry-APPROACH_GUIDE_PIXELS))
         if self.aircraft:
             pnm=(h-ry-60)/10; sx=rx+rw//2; sy=ry
             p.setPen(QPen(QColor(0,140,0),2)); p.drawLine(sx,sy,sx,int(sy-5*pnm))
             ay=int(sy-(self.aircraft.distance_from_vor/5)*pnm)
-            p.setPen(QPen(Qt.red,3)); p.setBrush(QBrush(Qt.red))
+            on_gs=self.guidance.get('on_profile', False)
+            acol=QColor(0,180,0) if on_gs else QColor(220,60,40)
+            p.setPen(QPen(acol,3)); p.setBrush(QBrush(acol))
             p.drawEllipse(sx-8,ay-8,16,16)
             p.setPen(QPen(Qt.black,1)); p.setFont(QFont("Arial",9))
             for li,ln in enumerate([
@@ -1674,6 +1896,11 @@ class ApproachGuidanceDisplay(QWidget):
                 f"SPD: {int(self.aircraft.speed)} kt",
             ]):
                 p.drawText(10,18+li*16,ln)
+        if self.guidance:
+            p.setPen(QPen(QColor(10,10,10),1)); p.setFont(QFont("Arial",9,QFont.Bold))
+            p.drawText(10,h-38,self.guidance.get('runway',''))
+            p.drawText(10,h-22,self.guidance.get('ils_text',''))
+            p.drawText(10,h-6,self.guidance.get('glide_text',''))
 
 
 # ===========================================================================
@@ -1683,7 +1910,7 @@ class VORAirportMonitorApp(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(
-            "VOR / ASRACS / SAAF \u2014 Airport Monitoring System v5.1")
+            "VOR / ASRACS / SAAF \u2014 Airport Monitoring System v5.2")
         self.setGeometry(50,50,1540,980)
 
         self.config      = VORAirportConfig()
@@ -1704,6 +1931,9 @@ class VORAirportMonitorApp(QMainWindow):
         self._port_timer = QTimer(); self._port_timer.timeout.connect(self._auto_refresh_ports)
         self._last_ports: List[str] = []
         self._current_vor_key = 'JNB_VOR'
+        self._current_base_icao = ''
+        self.glide_slope_detector = GlideSlopeDetector()
+        self.surface_slope_analyzer = SurfaceSlopeAnalyzer()
 
         # Set initial VOR position
         v = self.config.vor_stations.get('JNB_VOR', {})
@@ -1794,10 +2024,13 @@ class VORAirportMonitorApp(QMainWindow):
             return lab
         self.freq_lbl    = lbl(0, 0, "Frequency:",  "--- MHz")
         self.ident_lbl   = lbl(0, 2, "Ident:",       "---")
+        self.gs_info_lbl = lbl(0, 4, "Glide Slope:", "---")
         self.type_lbl    = lbl(1, 0, "Type:",         "---")
         self.ndb_lbl     = lbl(1, 2, "NDB:",          "--- kHz")
+        self.ils_info_lbl= lbl(1, 4, "ILS:",          "---")
         self.bearing_lbl = lbl(2, 0, "Bearing:",     "--- \u00b0")
         self.dev_lbl     = lbl(2, 2, "Deviation:",   "--- dots")
+        self.coverage_lbl= lbl(2, 4, "Coverage:",     "---")
         self.sig_lbl     = lbl(3, 0, "Signal:",      "--- dBm")
         self.health_lbl  = lbl(3, 2, "Health:",      "0%")
         self.status_lbl  = lbl(4, 0, "Status:",      "OFFLINE",
@@ -1947,7 +2180,14 @@ class VORAirportMonitorApp(QMainWindow):
         ndb    = st.get('ndb_freq')
         ndb_id = st.get('ndb_ident', '')
         self.ndb_lbl.setText(f"{ndb_id}  {ndb} kHz" if ndb else "N/A")
-        self.remarks_lbl.setText(st.get('remarks', ''))
+        ils_runways = st.get('ils_runways', [])
+        self.gs_info_lbl.setText(
+            f"{STANDARD_GLIDE_SLOPE_DEG:.1f}°" if st.get('ils_available') else "N/A")
+        self.ils_info_lbl.setText(_format_ils_runways(ils_runways))
+        self.coverage_lbl.setText(
+            f"VOR {'Yes' if st.get('vor_available', True) else 'No'}  /  "
+            f"ILS {'Yes' if st.get('ils_available') else 'No'}")
+        self.remarks_lbl.setText(_build_station_remarks(st))
 
         lat = st.get('latitude',  0.0)
         lon = st.get('longitude', 0.0)
@@ -1963,6 +2203,8 @@ class VORAirportMonitorApp(QMainWindow):
         if hasattr(self, 'sim_engine'):
             self.sim_engine.VOR_LAT = lat
             self.sim_engine.VOR_LON = lon
+        if hasattr(self, 'rwy_combo'):
+            self._sync_approach_base(st.get('airport', ''))
 
         # Simulation label — may not exist yet during first build pass
         if hasattr(self, 'base_sim_lbl'):
@@ -2001,6 +2243,123 @@ class VORAirportMonitorApp(QMainWindow):
             f"{st.get('frequency', 0):.2f} MHz"
         )
 
+    @staticmethod
+    def _distance_and_bearing_nm(lat1, lon1, lat2, lon2):
+        r_km = 6371.0
+        la1, lo1 = math.radians(lat1), math.radians(lon1)
+        la2, lo2 = math.radians(lat2), math.radians(lon2)
+        dlat, dlon = la2 - la1, lo2 - lo1
+        a = (math.sin(dlat/2)**2 +
+             math.cos(la1) * math.cos(la2) * math.sin(dlon/2)**2)
+        dist_nm = r_km * 2 * math.asin(math.sqrt(max(0, a))) / KM_PER_NM
+        y = math.sin(dlon) * math.cos(la2)
+        x = math.cos(la1) * math.sin(la2) - math.sin(la1) * math.cos(la2) * math.cos(dlon)
+        brg = (math.degrees(math.atan2(y, x)) + 360) % 360
+        return dist_nm, brg
+
+    @staticmethod
+    def _course_delta_deg(course, bearing):
+        return ((bearing - course + 540) % 360) - 180
+
+    def _selected_runway(self):
+        idx = self.rwy_combo.currentIndex()
+        return self.rwy_combo.itemData(idx) if idx >= 0 else None
+
+    def _sync_approach_base(self, airport):
+        self._current_base_icao = airport if airport in SAAF_BASES else ''
+        if not hasattr(self, 'rwy_combo'):
+            return
+        self.rwy_combo.blockSignals(True)
+        self.rwy_combo.clear()
+        base = SAAF_BASES.get(self._current_base_icao)
+        if base:
+            ils_by_end = {rw.get('runway'): rw for rw in base.get('ils_runways', [])}
+            for rwy in base.get('runways', []):
+                ils = [end for end in rwy['designation'].split('/') if end in ils_by_end]
+                if ils:
+                    for ils_end in ils:
+                        data = {**rwy, '_ils_end': ils_end}
+                        self.rwy_combo.addItem(f"{rwy['designation']}  ·  ILS {ils_end}",
+                                               userData=data)
+                else:
+                    self.rwy_combo.addItem(rwy['designation'], userData=dict(rwy))
+        if self.rwy_combo.count() == 0:
+            self.rwy_combo.addItem("---", userData=None)
+        self.rwy_combo.blockSignals(False)
+        self._on_runway_changed(self.rwy_combo.currentIndex())
+
+    def _on_runway_changed(self, idx):
+        rwy = self._selected_runway()
+        if not rwy:
+            self.rwy_hdg_lbl.setText("---")
+            self._update_approach_guidance()
+            return
+        desigs = rwy['designation'].split('/')
+        ils_end = rwy.get('_ils_end') or desigs[0]
+        inbound = rwy['true_hdg_lo'] if ils_end == desigs[0] else rwy['true_hdg_hi']
+        self.rwy_hdg_lbl.setText(f"{int(inbound):03d}°")
+        self._update_approach_guidance()
+
+    def _terrain_profile(self):
+        if not hasattr(self, 'terrain3d'):
+            return None
+        row = self.terrain3d.terrain_profile()
+        if row is None:
+            return None
+        if not self.terrain3d.GRID:
+            return None
+        spacing = (self.terrain3d.SIZE / self.terrain3d.GRID) * M_PER_KM
+        return self.surface_slope_analyzer.analyze_profile(row, spacing)
+
+    def _update_approach_guidance(self):
+        if not hasattr(self, 'approach'):
+            return
+        rwy = self._selected_runway()
+        ac_list = self.tracker.get_all()
+        ac = ac_list[0] if ac_list else None
+        if not rwy or not self._current_base_icao or not ac:
+            self.gs_lbl.setText(f"{STANDARD_GLIDE_SLOPE_DEG:.1f}°")
+            self.loc_lbl.setText("--- dots")
+            self.drwy_lbl.setText("--- nm")
+            if hasattr(self, 'slope_lbl'):
+                self.slope_lbl.setText("---")
+            self.approach.set_guidance({})
+            return
+        base = SAAF_BASES[self._current_base_icao]
+        desigs = rwy['designation'].split('/')
+        ils_end = rwy.get('_ils_end') or desigs[0]
+        runway_label = ils_end
+        use_lo = ils_end == desigs[0]
+        thr_lat = rwy['thr_lo_lat'] if use_lo else rwy['thr_hi_lat']
+        thr_lon = rwy['thr_lo_lon'] if use_lo else rwy['thr_hi_lon']
+        inbound = rwy['true_hdg_lo'] if use_lo else rwy['true_hdg_hi']
+        dist_nm, bearing = self._distance_and_bearing_nm(ac.latitude, ac.longitude, thr_lat, thr_lon)
+        loc_deg = self._course_delta_deg(inbound, bearing)
+        loc_scale = FULL_SCALE_LOCALIZER_DEG / MAX_LOCALIZER_DOTS
+        loc_dots = max(-MAX_LOCALIZER_DOTS, min(MAX_LOCALIZER_DOTS, loc_deg / loc_scale))
+        runway_elev_ft = base['elevation'] * FT_PER_M
+        gs_error = self.glide_slope_detector.calculate_glide_slope_error(
+            ac.altitude, dist_nm, runway_elev_ft)
+        gs_state = "ON GS" if self.glide_slope_detector.is_on_profile(
+            ac.altitude, dist_nm, runway_elev_ft) else ("HIGH" if gs_error > 0 else "LOW")
+        ils_match = next((rw for rw in base.get('ils_runways', [])
+                          if rw.get('runway') == ils_end), {})
+        self.gs_lbl.setText(f"{STANDARD_GLIDE_SLOPE_DEG:.1f}°  ({gs_state} {gs_error:+.0f} ft)")
+        self.loc_lbl.setText(f"{loc_dots:+.2f} dots")
+        self.drwy_lbl.setText(f"{dist_nm:.1f} nm")
+        if hasattr(self, 'slope_lbl'):
+            slope = self._terrain_profile()
+            self.slope_lbl.setText(
+                f"{slope.get('max_slope', 0.0):.1f}% max"
+                if isinstance(slope, dict) else "---")
+        self.approach.set_guidance(dict(
+            runway=f"RWY {runway_label}  CRS {int(inbound):03d}°",
+            ils_text=("No ILS" if not ils_match else
+                      f"ILS {ils_match.get('frequency', 0.0):.2f} MHz"),
+            glide_text=f"GS {STANDARD_GLIDE_SLOPE_DEG:.1f}°  {gs_state} {gs_error:+.0f} ft",
+            on_profile=gs_state == "ON GS",
+        ))
+
     # ── Aircraft Tracking Tab ─────────────────────────────────────────────
     def _tab_radar(self):
         w = QWidget(); lo = QVBoxLayout(w)
@@ -2024,10 +2383,10 @@ class VORAirportMonitorApp(QMainWindow):
         rg = QGroupBox("Runway"); rl = QGridLayout(rg)
         rl.addWidget(QLabel("Active Runway:"), 0, 0)
         self.rwy_combo = QComboBox()
-        self.rwy_combo.addItems(["03L/21R","03R/21L","09/27","10/28","17/35"])
+        self.rwy_combo.currentIndexChanged.connect(self._on_runway_changed)
         rl.addWidget(self.rwy_combo, 0, 1)
         rl.addWidget(QLabel("Heading:"), 0, 2)
-        self.rwy_hdg_lbl = QLabel("030\u00b0"); rl.addWidget(self.rwy_hdg_lbl, 0, 3)
+        self.rwy_hdg_lbl = QLabel("---"); rl.addWidget(self.rwy_hdg_lbl, 0, 3)
         lo.addWidget(rg)
         gg = QGroupBox("Approach Guidance"); gl = QVBoxLayout(gg)
         self.approach = ApproachGuidanceDisplay(); gl.addWidget(self.approach)
@@ -2039,6 +2398,8 @@ class VORAirportMonitorApp(QMainWindow):
         self.loc_lbl = QLabel("0 dots"); pl.addWidget(self.loc_lbl, 1, 1)
         pl.addWidget(QLabel("Dist to RWY:"), 0, 2)
         self.drwy_lbl = QLabel("--- nm"); pl.addWidget(self.drwy_lbl, 0, 3)
+        pl.addWidget(QLabel("Terrain Slope:"), 1, 2)
+        self.slope_lbl = QLabel("---"); pl.addWidget(self.slope_lbl, 1, 3)
         lo.addWidget(pg); lo.addStretch()
         return w
 
@@ -2532,6 +2893,7 @@ class VORAirportMonitorApp(QMainWindow):
             ]):
                 self.ac_table.setItem(r,c,QTableWidgetItem(v))
         if ac_list: self.approach.set_aircraft(ac_list[0])
+        self._update_approach_guidance()
 
     def _update_displays(self):
         try:
@@ -2607,9 +2969,10 @@ class VORAirportMonitorApp(QMainWindow):
 
     def _about(self):
         QMessageBox.about(self,"About",
-            "VOR / ASRACS / SAAF Airport Monitoring System v5.1\n\n"
-            "\u2022 FIXED AttributeError: widget init order (3-part fix)\n"
-            "\u2022 All 10 SAAF bases in VOR selection (incl. FAPE)\n"
+            "VOR / ASRACS / SAAF Airport Monitoring System v5.2\n\n"
+            "\u2022 All 10 SAAF bases include VOR / ILS metadata\n"
+            "\u2022 Glide slope detection in approach guidance\n"
+            "\u2022 Surface slope analysis tied to 3-D terrain\n"
             "\u2022 Realtime radar: sweep, trails, velocity leader, callouts\n"
             "\u2022 Per-base SAAF approach simulation\n"
             "\u2022 Terrain slope shading in 3-D OpenGL\n"
