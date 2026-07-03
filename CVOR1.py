@@ -75,7 +75,9 @@ MAX_EXTRACTED_LABELS = 64
 MAX_WAVEFORM_SAMPLES = 256
 MAX_WAVEFORMS = 8
 NM_TO_FEET = 6076.11549
-KTS_TO_FPM_BASE_FACTOR = 101.27
+# Convert groundspeed in knots to feet/min horizontal travel:
+# kts * NM_TO_FEET / 60
+KTS_TO_FPM_BASE_FACTOR = NM_TO_FEET / 60.0
 FEET_TO_METERS = 0.3048
 DEGREES_TO_NM = 60.0
 MIN_DIVISION_EPSILON = 1e-6
@@ -307,13 +309,17 @@ class LDAFileParser:
 
         # fallback: generic ILS ranges
         if "localizer_mhz" not in self.frequencies:
-            m = re.search(r"\b(10[89]\.\d{2}|11[01]\.\d{2}|111\.9[0-5])\b", decoded)
-            if m:
-                self.frequencies["localizer_mhz"] = float(m.group(1))
+            values = [float(v) for v in re.findall(r"\b\d{3}\.\d{2,3}\b", decoded)]
+            for v in values:
+                if 108.10 <= v <= 111.95:
+                    self.frequencies["localizer_mhz"] = v
+                    break
         if "glideslope_mhz" not in self.frequencies:
-            m = re.search(r"\b(329\.\d{2}|33[0-5]\.\d{2})\b", decoded)
-            if m:
-                self.frequencies["glideslope_mhz"] = float(m.group(1))
+            values = [float(v) for v in re.findall(r"\b\d{3}\.\d{2,3}\b", decoded)]
+            for v in values:
+                if 329.15 <= v <= 335.00:
+                    self.frequencies["glideslope_mhz"] = v
+                    break
 
     def printable_summary(self) -> str:
         lines = [f"LDA File: {self.file_path}"]
@@ -351,8 +357,8 @@ class GlideSlopeDetector:
         return runway_elev_ft + math.tan(math.radians(self.glide_slope_deg)) * distance_ft
 
     def calculate_descent_rate_fpm(self, groundspeed_kts: float) -> float:
-        # Approximation based on aviation rule-of-thumb: GS(kts) * 5 at 3 degrees,
-        # generalized for arbitrary glide slope angles.
+        # feet/min = horizontal_ft_per_min * tan(angle) where
+        # horizontal_ft_per_min = groundspeed_kts * NM_TO_FEET / 60
         return groundspeed_kts * KTS_TO_FPM_BASE_FACTOR * math.tan(math.radians(self.glide_slope_deg))
 
     def calculate_glide_slope_error(
@@ -863,6 +869,8 @@ class VORAirportMonitorApp:
         self.acq_thread: Optional[DataAcquisitionThread] = None
         self.qt_window: Optional[QMainWindow] = None
         self.qt_tabs: Optional[QTabWidget] = None
+        self.diag_text: Optional[QTextEdit] = None
+        self.lda_path_edit: Optional[QLineEdit] = None
         self.log_messages: queue.Queue[str] = queue.Queue(maxsize=500)
 
     def start(self) -> None:
@@ -906,7 +914,7 @@ class VORAirportMonitorApp:
         try:
             self.log_messages.put_nowait(message)
         except queue.Full:
-            pass
+            logger.warning("Log message queue full; dropping message")
 
     # --------------------------- Optional 8-tab UI ---------------------------
     def run_gui(self) -> int:
@@ -915,7 +923,7 @@ class VORAirportMonitorApp:
 
         app = QApplication([])
         self.qt_window = QMainWindow()
-        self.qt_window.setWindowTitle("CVOR1 v5.3 - VOR/ASRACS/SAAF Monitor")
+        self.qt_window.setWindowTitle(f"CVOR1 v{APP_VERSION} - VOR/ASRACS/SAAF Monitor")
         self.qt_window.resize(1280, 800)
 
         root = QWidget()
@@ -1030,7 +1038,7 @@ class VORAirportMonitorApp:
         return widget
 
     def _tick_gui(self) -> None:
-        if hasattr(self, "diag_text") and self.diag_text:
+        if self.diag_text:
             self.diag_text.setText(json.dumps(self.diagnostics(), indent=2))
 
     def _choose_lda_file(self) -> None:
@@ -1039,6 +1047,9 @@ class VORAirportMonitorApp:
             self.lda_path_edit.setText(path)
 
     def _import_lda_from_ui(self) -> None:
+        if not self.lda_path_edit:
+            self.conn_status_lbl.setText("LDA field not initialized")
+            return
         path = self.lda_path_edit.text().strip()
         if not path:
             self.conn_status_lbl.setText("No LDA file selected")
