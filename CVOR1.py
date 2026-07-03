@@ -64,6 +64,7 @@ except Exception:
 
 
 LOG_FILE = "vor_monitor.log"
+APP_VERSION = "5.3"
 DEFAULT_CONFIG_PATH = Path("vor_config.yaml")
 MAX_TEXT_LINE_LENGTH = 400
 MAX_CODED_WORDS = 512
@@ -73,7 +74,7 @@ CODED_SCAN_BYTES = 8192
 MAX_EXTRACTED_LABELS = 64
 MAX_WAVEFORM_SAMPLES = 256
 MAX_WAVEFORMS = 8
-NM_TO_FEET = 6076.12
+NM_TO_FEET = 6076.11549
 KTS_TO_FPM_BASE_FACTOR = 101.27
 FEET_TO_METERS = 0.3048
 DEGREES_TO_NM = 60.0
@@ -187,8 +188,10 @@ class LDAFileParser:
 
     def parse(self) -> bool:
         try:
-            if not self.file_path.exists() or self.file_path.suffix.lower() != ".lda":
-                raise LDAParseError("Input must be an existing .lda file")
+            if not self.file_path.exists():
+                raise LDAParseError(f"LDA file not found: {self.file_path}")
+            if self.file_path.suffix.lower() != ".lda":
+                raise LDAParseError(f"Unsupported file extension for {self.file_path}; expected .lda")
 
             self.raw_bytes = self.file_path.read_bytes()
             decoded = self.raw_bytes.decode("latin-1", errors="ignore")
@@ -304,11 +307,11 @@ class LDAFileParser:
 
         # fallback: generic ILS ranges
         if "localizer_mhz" not in self.frequencies:
-            m = re.search(r"\b(10[8-9]\.\d{2}|11[0-1]\.\d{2})\b", decoded)
+            m = re.search(r"\b(10[89]\.\d{2}|11[01]\.\d{2}|111\.9[0-5])\b", decoded)
             if m:
                 self.frequencies["localizer_mhz"] = float(m.group(1))
         if "glideslope_mhz" not in self.frequencies:
-            m = re.search(r"\b(32[89]\.\d{2}|33[0-5]\.\d{2})\b", decoded)
+            m = re.search(r"\b(329\.\d{2}|33[0-5]\.\d{2})\b", decoded)
             if m:
                 self.frequencies["glideslope_mhz"] = float(m.group(1))
 
@@ -348,7 +351,8 @@ class GlideSlopeDetector:
         return runway_elev_ft + math.tan(math.radians(self.glide_slope_deg)) * distance_ft
 
     def calculate_descent_rate_fpm(self, groundspeed_kts: float) -> float:
-        # ICAO rule of thumb generalized from angle
+        # Approximation based on aviation rule-of-thumb: GS(kts) * 5 at 3 degrees,
+        # generalized for arbitrary glide slope angles.
         return groundspeed_kts * KTS_TO_FPM_BASE_FACTOR * math.tan(math.radians(self.glide_slope_deg))
 
     def calculate_glide_slope_error(
@@ -413,7 +417,7 @@ class VORAirportConfig:
 
     def default(self) -> Dict[str, Any]:
         return {
-            "version": "5.3",
+            "version": APP_VERSION,
             "ui": {"theme": "dark", "refresh_hz": 1},
             "connections": {"mode": "mock", "serial_port": "", "tcp_host": "127.0.0.1", "tcp_port": 5000},
             "performance": {"radar_fps": 60, "terrain_frame_ms": 16},
@@ -538,6 +542,7 @@ class ASRACSSimEngine:
         self.lock = threading.Lock()
         self.targets: Dict[str, ASRACSTarget] = {}
         self.alerts: Deque[ASRACSAlert] = deque(maxlen=200)
+        self._active_alert_targets: set[str] = set()
 
     def add_target(self, target: ASRACSTarget) -> None:
         with self.lock:
@@ -549,8 +554,12 @@ class ASRACSSimEngine:
                 heading = math.radians(t.heading_deg)
                 t.x_m += math.cos(heading) * t.speed_mps * dt_s
                 t.y_m += math.sin(heading) * t.speed_mps * dt_s
-                if abs(t.x_m) < INCURSION_THRESHOLD_METERS and abs(t.y_m) < INCURSION_THRESHOLD_METERS:
+                in_risk_zone = abs(t.x_m) < INCURSION_THRESHOLD_METERS and abs(t.y_m) < INCURSION_THRESHOLD_METERS
+                if in_risk_zone and ident not in self._active_alert_targets:
                     self.alerts.append(ASRACSAlert(severity="critical", message=f"Runway incursion risk: {ident}"))
+                    self._active_alert_targets.add(ident)
+                elif not in_risk_zone and ident in self._active_alert_targets:
+                    self._active_alert_targets.remove(ident)
 
     def latest_alerts(self, limit: int = 20) -> List[ASRACSAlert]:
         with self.lock:
@@ -564,8 +573,13 @@ class SerialVORConnection:
     def connect(self, port: str, baudrate: int = 9600, timeout: float = 1.0) -> bool:
         if serial is None:
             raise RuntimeError("pyserial not available")
-        self.conn = serial.Serial(port=port, baudrate=baudrate, timeout=timeout)
-        return bool(self.conn and self.conn.is_open)
+        try:
+            self.conn = serial.Serial(port=port, baudrate=baudrate, timeout=timeout)
+            return bool(self.conn and self.conn.is_open)
+        except Exception:
+            logger.exception("Serial connection failed on port %s", port)
+            self.conn = None
+            return False
 
     def read_line(self) -> str:
         if not self.conn:
@@ -583,8 +597,13 @@ class TCPVORConnection:
         self.sock: Optional[socket.socket] = None
 
     def connect(self, host: str, port: int, timeout: float = 2.0) -> bool:
-        self.sock = socket.create_connection((host, port), timeout=timeout)
-        return True
+        try:
+            self.sock = socket.create_connection((host, port), timeout=timeout)
+            return True
+        except Exception:
+            logger.exception("TCP connection failed for %s:%s", host, port)
+            self.sock = None
+            return False
 
     def query(self, payload: str) -> str:
         if not self.sock:
@@ -731,7 +750,7 @@ class DataAcquisitionThread(threading.Thread):
         try:
             return VORDataSample(
                 timestamp=time.time(),
-                station_icao="FAWK",
+                station_icao=vals.get("ICAO", "FAWK"),
                 bearing_deg=float(vals.get("BRG", 0.0)),
                 ddm=float(vals.get("DDM", 0.0)),
                 sdm=float(vals.get("SDM", NOMINAL_SDM)),
@@ -747,13 +766,14 @@ class DataAcquisitionThread(threading.Thread):
 class DiagnosticsMonitor:
     def __init__(self, processor: VORDataProcessor):
         self.processor = processor
+        self.started_at = time.time()
 
     def snapshot(self) -> Dict[str, Any]:
         summary = self.processor.summary()
         return {
             "processor": summary,
             "buffer_size": int(summary.get("count", 0)),
-            "uptime_sec": time.time(),
+            "uptime_sec": time.time() - self.started_at,
             "log_file": LOG_FILE,
         }
 
@@ -866,7 +886,11 @@ class VORAirportMonitorApp:
         self.state.conn_manager.set_mode("lda")
         ok = self.state.conn_manager.connect(path=path)
         if not ok:
-            raise LDAParseError(f"Could not parse LDA file: {path}")
+            parser = self.state.conn_manager.lda_conn.parser
+            detail = ""
+            if parser is not None:
+                detail = parser.coded_values.get("error", "")
+            raise LDAParseError(f"Could not parse LDA file: {path}. {detail}".strip())
         payload = self.state.conn_manager.poll()
         self.log("LDA data imported")
         return payload
