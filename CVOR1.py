@@ -942,12 +942,12 @@ class CDIDisplay(QWidget):
         cy = int(h / 2)
         r = int(min(w, h) / 2 - 8)
 
-        # Background
-        painter.fillRect(0, 0, w, h, QColor(15, 15, 30))
+        # Background – explicit int() casts for all coordinates (PyQt5 type safety)
+        painter.fillRect(int(0), int(0), int(w), int(h), QColor(15, 15, 30))
 
         # Outer circle
         painter.setPen(QPen(QColor(100, 200, 100), 2))
-        painter.drawEllipse(cx - r, cy - r, r * 2, r * 2)
+        painter.drawEllipse(int(cx - r), int(cy - r), int(r * 2), int(r * 2))
 
         # Dot scale: 5 dots, ±2.5
         dot_spacing = int(r * 0.38)
@@ -1318,7 +1318,7 @@ class Terrain3DWidget(QOpenGLWidget if HAS_OPENGL_WIDGET else QWidget):
                     0.15 * math.sin(i * 0.9 + 1) * math.cos(j * 0.7 + 2) +
                     0.05 * math.sin(i * 2.1) * math.sin(j * 1.8)
                 )
-        z = (z - z.min()) / (z.max() - z.min() + 1e-9)  # normalise 0-1
+        z = (z - z.min()) / (z.max() - z.min() + 1e-9)  # normalise 0-1; 1e-9 avoids division by zero on flat terrain
         return z
 
     def set_aircraft(self, aircraft: List[AircraftData]) -> None:
@@ -2744,6 +2744,7 @@ def _self_test() -> int:
 
     check('GlideSlopeDetector basic', lambda: (
         lambda gs: (
+            # At 10 nm on a 3° glide path: tan(3°) * 10 * 6076 ft/nm ≈ 3188 ft
             assert_close(gs.ideal_altitude_ft(10), 3188, tol=50),
             assert_close(gs.check_glideslope(3188, 10), 0, tol=100),
         )
@@ -2757,7 +2758,8 @@ def _self_test() -> int:
     )(SurfaceSlopeAnalyzer().analyze(-25.83, 28.22)))
 
     check('gc_distance_nm JNB-CPT', lambda: (
-        lambda d: assert_(400 < d < 900, f'unexpected distance {d}')
+        # JNB (−26.14°, 28.25°) to CPT (−33.96°, 18.60°) ≈ 686 nm
+        lambda d: assert_(620 < d < 750, f'unexpected distance {d}')
     )(gc_distance_nm(-26.14, 28.25, -33.96, 18.60)))
 
     check('bearing_to north', lambda: (
