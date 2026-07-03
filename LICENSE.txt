@@ -1,69 +1,156 @@
-GNU GENERAL PUBLIC LICENSE
-Version 3, 29 June 2007
+================================================================================
+  LICENSE AGREEMENT
+  VOR / ASRACS / SAAF Monitoring System v5.2
+================================================================================
 
-VOR / ASRACS / SAAF Airport Monitoring System v5.2
-Copyright (C) 2026 South African Air Force (SAAF) / Aviation Systems
+COPYRIGHT NOTICE
 
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+Copyright (c) 2026 Aviation Systems. All rights reserved.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+Author: Schalk Pieterse (schalkpieterse76-afk)
+Repository: https://github.com/schalkpieterse76-afk/VOR-Monitoring--System
 
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see <https://www.gnu.org/licenses/>.
+================================================================================
 
-========================================================================
+TERMS AND CONDITIONS
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+1. GRANT OF LICENSE
+   This software is provided "as-is" for use by South African Air Force (SAAF),
+   civilian aviation authorities, and authorized research institutions. Users
+   may install and operate this software on Windows 7 SP1 or later systems.
 
-========================================================================
+2. RESTRICTIONS
+   Users SHALL NOT:
+   - Redistribute this software without written permission
+   - Modify or create derivative works without explicit authorization
+   - Reverse engineer, decompile, or disassemble the executable
+   - Use this software for commercial purposes
+   - Remove or alter any copyright, license, or proprietary notices
+   - Use this software for military operations without proper authorization
 
-DEPENDENCY LICENSES:
+3. INTELLECTUAL PROPERTY
+   All intellectual property rights in the Software are owned by Aviation
+   Systems. This includes but is not limited to:
+   - Source code algorithms and logic
+   - User interface design
+   - Database schemas
+   - Documentation and technical specifications
+   - VOR/ILS database and navaid configuration
 
-1. PyQt5 - GNU General Public License v3.0
-   https://www.riverbankcomputing.com/software/pyqt/
+4. OPEN SOURCE COMPONENTS
+   This software incorporates the following open-source libraries:
 
-2. PyOpenGL - BSD License
-   https://github.com/mcfletch/PyOpenGL
+   PyQt5 - GPL v3 License
+     - Website: https://www.riverbankcomputing.com/software/pyqt/
+     - Used for graphical user interface
+     - Subject to GPL v3 terms
 
-3. NumPy - BSD License
-   https://numpy.org/
+   PyOpenGL - BSD License
+     - Website: http://pyopengl.sourceforge.net/
+     - Used for 3-D graphics rendering
+     - Freely distributable under BSD terms
 
-4. PyYAML - MIT License
-   https://pyyaml.org/
+   pyserial - BSD License
+     - Website: https://github.com/pyserial/pyserial
+     - Used for RS-232 serial communication
+     - Freely distributable under BSD terms
 
-5. pyserial - BSD License
-   https://github.com/pyserial/pyserial
+   NumPy - BSD License
+     - Website: https://numpy.org/
+     - Used for numerical computations
+     - Freely distributable under BSD terms
 
-6. PyInstaller - GNU General Public License v2.0
-   https://www.pyinstaller.org/
+   PyYAML - MIT License
+     - Website: https://pyyaml.org/
+     - Used for configuration file parsing
+     - Freely distributable under MIT terms
 
-========================================================================
+   See respective project repositories for full license text.
 
-USE AT YOUR OWN RISK:
+5. DISCLAIMER OF WARRANTIES
+   THIS SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 
-This software is provided for monitoring, simulation, and educational
-purposes only. Users assume all responsibility for proper operation,
-calibration, and integration with real aviation systems. Operators must
-follow all applicable South African Civil Aviation Regulations (SCAR) and
-ICAO standards.
+   The authors or copyright holders shall NOT be liable for any claim, damages
+   or other liability, whether in an action of contract, tort or otherwise,
+   arising from, out of or in connection with the software or the use or other
+   dealings in the software.
 
-This software does NOT constitute an approved navigation aid and must NOT
-be used as a primary navigation source for actual flight operations without
-proper certification and validation.
+6. LIMITATION OF LIABILITY
+   In no event shall Aviation Systems be liable for any indirect, incidental,
+   special, exemplary, or consequential damages (including, but not limited to,
+   procurement of substitute goods or services; loss of use, data, or profits;
+   or business interruption) however caused and on any theory of liability,
+   whether in contract, strict liability, or tort (including negligence or
+   otherwise) arising in any way out of the use of this software.
 
-========================================================================
+7. INDEMNIFICATION
+   User agrees to indemnify and hold harmless Aviation Systems, its officers,
+   directors, employees, and agents from any and all claims, damages, losses,
+   liabilities, costs and expenses (including attorneys' fees) arising from:
+   - User's use or misuse of the software
+   - Violation of these terms and conditions
+   - Infringement of any third-party rights
 
-For questions or licensing inquiries, contact:
-schalkpieterse76@gmail.com
+8. TERMINATION
+   This license is effective until terminated. Rights will terminate
+   automatically without notice if user fails to comply with any term(s) of
+   this agreement. Upon termination of this license, user shall cease all use
+   of the software.
+
+9. GOVERNING LAW
+   This agreement shall be governed by and construed in accordance with the
+   laws of South Africa, without regard to its conflict of law provisions.
+   Any legal action or proceeding relating to this agreement shall be brought
+   exclusively in the courts of South Africa.
+
+10. ENTIRE AGREEMENT
+    This agreement, together with the README.txt and INSTALL.txt files,
+    constitutes the entire agreement between user and Aviation Systems
+    regarding the software and supersedes all prior agreements, understandings,
+    and negotiations.
+
+11. AMENDMENTS
+    Aviation Systems reserves the right to amend these terms and conditions at
+    any time. Changes will be effective upon posting to the project repository.
+    User's continued use of the software following posting constitutes acceptance
+    of the amended terms.
+
+12. SEVERABILITY
+    If any provision of this agreement is held to be invalid or unenforceable,
+    such provision shall be struck and the remaining provisions shall remain in
+    full force and effect.
+
+13. WAIVER
+    Failure by Aviation Systems to enforce any provision of this agreement does
+    not constitute waiver of that provision or any other provision.
+
+14. CONTACT INFORMATION
+    For questions regarding this license:
+    - GitHub: https://github.com/schalkpieterse76-afk/VOR-Monitoring--System
+    - Issues: https://github.com/schalkpieterse76-afk/VOR-Monitoring--System/issues
+
+================================================================================
+
+ACKNOWLEDGMENTS
+
+This software was developed with reference to:
+  - ICAO Annex 10 (Aeronautical Telecommunications)
+  - ICAO Doc 8168 (Procedures for Air Navigation Services)
+  - FAA Order 8000.72 (Navaid Specifications)
+  - SAAF Operations Manuals
+  - South African CASR Part 139 (Aerodrome Operations)
+
+VOR Station Data:
+  - South African Department of Defence
+  - Airports Company South Africa (ACSA)
+  - CAA South Africa
+  - SAAF Flight Operations Division
+
+================================================================================
+
+Last Updated: 2026-07-03
+Version: 5.2
+
+================================================================================

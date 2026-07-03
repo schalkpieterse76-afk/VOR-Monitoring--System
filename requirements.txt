@@ -1,12 +1,22 @@
-# VOR / ASRACS / SAAF Airport Monitoring System v5.2
-# Python 3.8+ Requirements
-# Install with: pip install -r requirements.txt
+# VOR / ASRACS / SAAF Monitoring System v5.2
+# Python Dependencies (pip install -r requirements.txt)
 
+# GUI Framework
 PyQt5>=5.15.0
 PyQtChart>=5.15.0
+
+# 3-D Graphics & Visualization
 PyOpenGL>=3.1.5
 PyOpenGL_accelerate>=3.1.5
+
+# Serial Communication (VOR Receiver)
 pyserial>=3.5
-numpy>=1.21.0
+
+# Numerical & Scientific Computing
+numpy>=1.19.0
+
+# Configuration File Parsing
 PyYAML>=5.4.0
-PyInstaller>=4.5.0
+
+# Build Tools (for creating executable)
+PyInstaller>=4.5.1

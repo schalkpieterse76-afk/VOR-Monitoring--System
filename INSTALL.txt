@@ -1,0 +1,158 @@
+================================================================================
+  INSTALLATION INSTRUCTIONS
+  VOR / ASRACS / SAAF Monitoring System v5.2
+================================================================================
+
+QUICK START
+-----------
+
+1. Double-click CVOR1_Setup_v5.2.exe
+2. Follow on-screen prompts
+3. Click "Finish" when complete
+4. Launch from Start Menu or Desktop shortcut
+
+DETAILED INSTALLATION
+---------------------
+
+PREREQUISITES:
+  - Windows 7 SP1 or later
+  - Administrator rights (for installation)
+  - 500 MB free disk space
+  - 4 GB RAM minimum
+
+STEPS:
+
+1. Launch Installer
+   - Locate CVOR1_Setup_v5.2.exe
+   - Right-click > Run as Administrator (recommended)
+   - Or double-click to run normally
+
+2. Welcome Screen
+   - Read the welcome message
+   - Click "Next" to continue
+
+3. License Agreement
+   - Read the full license (scroll to bottom)
+   - Select "I accept the agreement"
+   - Click "Next"
+
+4. Information Before Install
+   - Review installation notes
+   - Click "Next" to proceed
+
+5. Select Destination Folder
+   - Default: C:\Program Files\VOR ASRACS SAAF Monitoring System
+   - Change if desired (not recommended)
+   - Click "Next"
+
+6. Select Start Menu Folder
+   - Default: VOR ASRACS SAAF Monitoring System
+   - Click "Next"
+
+7. Select Tasks
+   - Check "Create a desktop icon" (optional)
+   - Check "Create a Quick Launch icon" (optional on Win7/8)
+   - Click "Next"
+
+8. Ready to Install
+   - Review installation details
+   - Click "Install" to begin
+   - Wait 1-2 minutes for installation
+
+9. Installation Complete
+   - Check "Run CVOR1 now" to launch immediately
+   - Read information after install
+   - Click "Finish"
+
+POST-INSTALLATION
+------------------
+
+FIRST LAUNCH:
+  1. Application will create vor_config.yaml on first run
+  2. Default VOR station: OR Tambo (JNB)
+  3. All 13 airports pre-loaded and ready
+
+VERIFY INSTALLATION:
+  1. Start Menu > VOR ASRACS SAAF Monitoring System
+  2. Verify "Ready | ASRACS: OFF | Sim: OFF" status
+  3. Try Connection > Mock Server > Start
+  4. Try Terrain > En-Route Sim > Start
+
+UNINSTALLATION
+--------------
+
+TO UNINSTALL:
+  1. Start Menu > Settings > Apps & Features
+  2. Find "VOR ASRACS SAAF Monitoring System"
+  3. Click > Uninstall
+  4. Confirm removal
+
+OR:
+  1. Start Menu > VOR ASRACS SAAF Monitoring System > Uninstall CVOR1
+  2. Confirm in dialog
+
+NOTE: vor_monitor.log and vor_config.yaml are NOT removed during uninstall
+      (preserved for potential re-installation)
+
+TROUBLESHOOTING INSTALLATION
+-----------------------------
+
+PROBLEM: "Access Denied" during installation
+SOLUTION: Run installer as Administrator (right-click > Run as Administrator)
+
+PROBLEM: "Destination folder does not exist"
+SOLUTION:
+  1. Choose a different destination folder
+  2. Ensure C: drive has write permissions
+  3. Try installing to external drive if available
+
+PROBLEM: Installation hangs or freezes
+SOLUTION:
+  1. Cancel and restart installer
+  2. Close all other applications first
+  3. Check antivirus is not blocking installer
+  4. Temporarily disable antivirus during install
+
+PROBLEM: Application won't start after installation
+SOLUTION:
+  1. Verify installation completed successfully
+  2. Check Windows firewall isn't blocking CVOR1.exe
+  3. Uninstall and reinstall
+  4. Check vor_monitor.log for error details
+
+PROBLEM: Missing dependencies after installation
+SOLUTION:
+  - This is rare. The installer includes all dependencies.
+  - If occurs, uninstall and reinstall completely.
+  - Contact support with error message from vor_monitor.log
+
+CUSTOM INSTALLATION (Advanced)
+------------------------------
+
+TO BUILD FROM SOURCE:
+  1. Install Python 3.9+ from python.org
+  2. git clone https://github.com/schalkpieterse76-afk/VOR-Monitoring--System
+  3. pip install -r requirements.txt
+  4. python CVOR1.py (to run directly)
+  5. build_exe.bat (to create standalone EXE)
+  6. build_installer.bat (to create MSI installer)
+
+REQUIREMENTS.TXT:
+  PyQt5>=5.15.0
+  PyQtChart>=5.15.0
+  PyOpenGL>=3.1.5
+  PyOpenGL_accelerate>=3.1.5
+  pyserial>=3.5
+  numpy>=1.19.0
+  PyYAML>=5.4.0
+
+SUPPORT
+-------
+
+For installation issues:
+  1. Check README.txt for troubleshooting
+  2. Review vor_monitor.log in application directory
+  3. Contact: schalkpieterse76-afk@github.com
+  4. Report issue: https://github.com/schalkpieterse76-afk/VOR-Monitoring--System/issues
+
+================================================================================

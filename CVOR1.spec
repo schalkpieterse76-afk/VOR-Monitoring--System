@@ -1,6 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
-# PyInstaller spec file for VOR/ASRACS/SAAF Airport Monitoring System v5.2
-# Build with: pyinstaller CVOR1.spec
+# PyInstaller spec file for CVOR1.py
+# Generated for VOR / ASRACS / SAAF Monitoring System v5.2
 
 block_cipher = None
 
@@ -9,22 +9,16 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[
-        ('vor_config.yaml', '.'),
-        ('LICENSE.txt', '.'),
-        ('README.md', '.'),
+        ('CVOR1.ico', '.'),
+        ('CVOR1.png', '.'),
     ],
     hiddenimports=[
-        'PyQt5',
-        'PyQt5.QtCore',
-        'PyQt5.QtGui',
-        'PyQt5.QtWidgets',
-        'PyQt5.QtChart',
+        'PyQt5.sip',
         'serial',
-        'serial.tools.list_ports',
         'OpenGL.GL',
         'OpenGL.GLU',
+        'PyQtChart',
         'numpy',
-        'yaml',
     ],
     hookspath=[],
     hooksconfig={},
@@ -54,7 +48,6 @@ exe = EXE(
     runtime_tmpdir=None,
     console=False,
     disable_windowed_traceback=False,
-    argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
