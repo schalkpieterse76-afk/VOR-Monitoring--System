@@ -1,8 +1,8 @@
-; Inno Setup Script for VOR / ASRACS / SAAF Monitoring System v5.2
+; Inno Setup Script for VOR / ASRACS / SAAF Monitoring System v5.3
 ; ============================================================================
 
 #define MyAppName "VOR / ASRACS / SAAF Monitoring System"
-#define MyAppVersion "5.2"
+#define MyAppVersion "5.3"
 #define MyAppPublisher "South African Air Force (SAAF)"
 #define MyAppURL "https://github.com/schalkpieterse76-afk/VOR-Monitoring--System"
 #define MyAppExeName "CVOR1.exe"
@@ -23,7 +23,7 @@ LicenseFile=LICENSE.txt
 InfoBeforeFile=INSTALL.txt
 InfoAfterFile=README.txt
 OutputDir=Output
-OutputBaseFilename=CVOR1_Setup_v5.2
+OutputBaseFilename=CVOR1_Setup_v5.3
 SetupIconFile=CVOR1.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma
