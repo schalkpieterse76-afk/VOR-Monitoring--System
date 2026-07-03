@@ -27,7 +27,7 @@ import time
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Deque, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Deque, Dict, Iterable, List, Optional, Set, Tuple, Union
 
 try:
     import yaml  # type: ignore
@@ -178,7 +178,7 @@ class LDAParseError(RuntimeError):
 class LDAFileParser:
     """Parser for Thales/Rohde & Schwarz .lda configuration files."""
 
-    def __init__(self, file_path: str | Path):
+    def __init__(self, file_path: Union[str, Path]):
         self.file_path = Path(file_path)
         self.raw_bytes: bytes = b""
         self.text_sections: Dict[str, str] = {}
@@ -548,7 +548,7 @@ class ASRACSSimEngine:
         self.lock = threading.Lock()
         self.targets: Dict[str, ASRACSTarget] = {}
         self.alerts: Deque[ASRACSAlert] = deque(maxlen=200)
-        self._active_alert_targets: set[str] = set()
+        self._active_alert_targets: Set[str] = set()
 
     def add_target(self, target: ASRACSTarget) -> None:
         with self.lock:
@@ -671,7 +671,7 @@ class LDAFileConnection:
     def __init__(self):
         self.parser: Optional[LDAFileParser] = None
 
-    def connect(self, lda_path: str | Path) -> bool:
+    def connect(self, lda_path: Union[str, Path]) -> bool:
         self.parser = LDAFileParser(lda_path)
         return self.parser.parse()
 
@@ -871,6 +871,7 @@ class VORAirportMonitorApp:
         self.qt_tabs: Optional[QTabWidget] = None
         self.diag_text: Optional[QTextEdit] = None
         self.lda_path_edit: Optional[QLineEdit] = None
+        self.conn_status_lbl: Optional[QLabel] = None
         self.log_messages: queue.Queue[str] = queue.Queue(maxsize=500)
 
     def start(self) -> None:
@@ -1042,23 +1043,28 @@ class VORAirportMonitorApp:
             self.diag_text.setText(json.dumps(self.diagnostics(), indent=2))
 
     def _choose_lda_file(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(self.qt_window, "Select LDA File", "", "LDA Files (*.lda)")
+        parent = self.qt_window if self.qt_window is not None else None
+        path, _ = QFileDialog.getOpenFileName(parent, "Select LDA File", "", "LDA Files (*.lda)")
         if path:
             self.lda_path_edit.setText(path)
 
     def _import_lda_from_ui(self) -> None:
         if not self.lda_path_edit:
-            self.conn_status_lbl.setText("LDA field not initialized")
+            if self.conn_status_lbl:
+                self.conn_status_lbl.setText("LDA field not initialized")
             return
         path = self.lda_path_edit.text().strip()
         if not path:
-            self.conn_status_lbl.setText("No LDA file selected")
+            if self.conn_status_lbl:
+                self.conn_status_lbl.setText("No LDA file selected")
             return
         try:
             payload = self.import_lda(path)
-            self.conn_status_lbl.setText(f"LDA imported: {len(payload.get('waveforms', []))} waveforms")
+            if self.conn_status_lbl:
+                self.conn_status_lbl.setText(f"LDA imported: {len(payload.get('waveforms', []))} waveforms")
         except Exception as exc:
-            self.conn_status_lbl.setText(f"Import failed: {exc}")
+            if self.conn_status_lbl:
+                self.conn_status_lbl.setText(f"Import failed: {exc}")
 
 
 def cli_self_test() -> int:
