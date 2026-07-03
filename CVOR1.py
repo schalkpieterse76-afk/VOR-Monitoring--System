@@ -65,6 +65,31 @@ except Exception:
 
 LOG_FILE = "vor_monitor.log"
 DEFAULT_CONFIG_PATH = Path("vor_config.yaml")
+MAX_TEXT_LINE_LENGTH = 400
+MAX_CODED_WORDS = 512
+MIN_TOKEN_LENGTH = 4
+MAX_TOKEN_LENGTH = 24
+CODED_SCAN_BYTES = 8192
+MAX_EXTRACTED_LABELS = 64
+MAX_WAVEFORM_SAMPLES = 256
+MAX_WAVEFORMS = 8
+NM_TO_FEET = 6076.12
+KTS_TO_FPM_BASE_FACTOR = 101.27
+FEET_TO_METERS = 0.3048
+DEGREES_TO_NM = 60.0
+MIN_DIVISION_EPSILON = 1e-6
+DEFAULT_DESCENT_RATE_FPM = 500.0
+SECONDS_PER_MINUTE = 60.0
+INCURSION_THRESHOLD_METERS = 30.0
+SERVER_SOCKET_TIMEOUT_SEC = 0.4
+MOCK_SERVER_RECV_SIZE = 2048
+DDM_MIN = -0.155
+DDM_MAX = 0.155
+NOMINAL_SDM = 40.0
+NOMINAL_RF_DBM = -58.0
+THREAD_SHUTDOWN_TIMEOUT_SEC = 2.0
+GUI_REFRESH_INTERVAL_MS = 1000
+SELF_TEST_WARMUP_SEC = 1.2
 
 logging.basicConfig(
     level=logging.INFO,
@@ -184,7 +209,7 @@ class LDAFileParser:
         # Supports key=value or key: value text printout sections
         for line in decoded.splitlines():
             s = line.strip()
-            if not s or len(s) > 400:
+            if not s or len(s) > MAX_TEXT_LINE_LENGTH:
                 continue
             if "=" in s:
                 key, value = s.split("=", 1)
@@ -204,7 +229,7 @@ class LDAFileParser:
             return
 
         # Pull compact numeric snapshots from binary CODED payload.
-        max_words = min(512, len(payload) // 2)
+        max_words = min(MAX_CODED_WORDS, len(payload) // 2)
         words = [struct.unpack_from("<H", payload, i * 2)[0] for i in range(max_words)]
         self.coded_values["word_count"] = len(words)
         if words:
@@ -213,8 +238,11 @@ class LDAFileParser:
             self.coded_values["word_avg"] = float(sum(words)) / len(words)
 
         # Attempt to decode plausible ASCII labels embedded in binary.
-        ascii_tokens = re.findall(rb"[A-Z0-9_\-/]{4,24}", payload[:8192])
-        labels = sorted({tok.decode("ascii", "ignore") for tok in ascii_tokens})[:64]
+        ascii_tokens = re.findall(
+            rf"[A-Z0-9_\-/]{{{MIN_TOKEN_LENGTH},{MAX_TOKEN_LENGTH}}}".encode(),
+            payload[:CODED_SCAN_BYTES],
+        )
+        labels = sorted({tok.decode("ascii", "ignore") for tok in ascii_tokens})[:MAX_EXTRACTED_LABELS]
         if labels:
             self.coded_values["labels"] = labels
 
@@ -224,8 +252,8 @@ class LDAFileParser:
             if re.search(r"\b(waveform|wfm|wave)\b", line, re.IGNORECASE):
                 nums = [float(n) for n in re.findall(r"[-+]?\d+(?:\.\d+)?", line)]
                 name = line.strip()[:120]
-                found.append({"name": name, "samples": nums[:256]})
-                if len(found) >= 8:
+                found.append({"name": name, "samples": nums[:MAX_WAVEFORM_SAMPLES]})
+                if len(found) >= MAX_WAVEFORMS:
                     break
 
         if not found:
@@ -233,7 +261,7 @@ class LDAFileParser:
             for label in names:
                 if "WAVE" in label.upper() or "WFM" in label.upper():
                     found.append({"name": label, "samples": []})
-                    if len(found) >= 8:
+                    if len(found) >= MAX_WAVEFORMS:
                         break
 
         self.waveforms = found
@@ -316,12 +344,12 @@ class GlideSlopeDetector:
         self.tolerance_ft = tolerance_ft
 
     def ideal_altitude_ft(self, distance_nm: float, runway_elev_ft: float = 0.0) -> float:
-        distance_ft = max(0.0, distance_nm) * 6076.12
+        distance_ft = max(0.0, distance_nm) * NM_TO_FEET
         return runway_elev_ft + math.tan(math.radians(self.glide_slope_deg)) * distance_ft
 
     def calculate_descent_rate_fpm(self, groundspeed_kts: float) -> float:
         # ICAO rule of thumb generalized from angle
-        return groundspeed_kts * 101.27 * math.tan(math.radians(self.glide_slope_deg))
+        return groundspeed_kts * KTS_TO_FPM_BASE_FACTOR * math.tan(math.radians(self.glide_slope_deg))
 
     def calculate_glide_slope_error(
         self, aircraft_alt_ft: float, distance_nm: float, runway_elev_ft: float = 0.0
@@ -361,7 +389,7 @@ class SurfaceSlopeAnalyzer:
         if distance_m <= 0:
             return 0.0
         delta_ft = elevation_b_ft - elevation_a_ft
-        delta_m = delta_ft * 0.3048
+        delta_m = delta_ft * FEET_TO_METERS
         return (delta_m / distance_m) * 100.0
 
     @staticmethod
@@ -462,8 +490,8 @@ class AircraftTracker:
     def relative_distance_nm(self, a: AircraftState, b: AircraftState) -> float:
         # quick equirectangular approximation for local region
         lat_factor = math.cos(math.radians((a.lat + b.lat) / 2.0))
-        dlat_nm = (a.lat - b.lat) * 60.0
-        dlon_nm = (a.lon - b.lon) * 60.0 * lat_factor
+        dlat_nm = (a.lat - b.lat) * DEGREES_TO_NM
+        dlon_nm = (a.lon - b.lon) * DEGREES_TO_NM * lat_factor
         return math.hypot(dlat_nm, dlon_nm)
 
 
@@ -490,13 +518,15 @@ class SimulationEngine:
         for st in states:
             nm = st.gs_kts * dt_s / 3600.0
             heading = math.radians(st.track_deg)
-            dlat = (nm * math.cos(heading)) / 60.0
-            dlon = (nm * math.sin(heading)) / max(1e-6, 60.0 * math.cos(math.radians(st.lat)))
+            dlat = (nm * math.cos(heading)) / DEGREES_TO_NM
+            dlon = (nm * math.sin(heading)) / max(
+                MIN_DIVISION_EPSILON, DEGREES_TO_NM * math.cos(math.radians(st.lat))
+            )
             updated = AircraftState(
                 callsign=st.callsign,
                 lat=st.lat + dlat,
                 lon=st.lon + dlon,
-                alt_ft=max(0.0, st.alt_ft - 500.0 * dt_s / 60.0),
+                alt_ft=max(0.0, st.alt_ft - DEFAULT_DESCENT_RATE_FPM * dt_s / SECONDS_PER_MINUTE),
                 gs_kts=st.gs_kts,
                 track_deg=st.track_deg,
             )
@@ -519,7 +549,7 @@ class ASRACSSimEngine:
                 heading = math.radians(t.heading_deg)
                 t.x_m += math.cos(heading) * t.speed_mps * dt_s
                 t.y_m += math.sin(heading) * t.speed_mps * dt_s
-                if abs(t.x_m) < 30 and abs(t.y_m) < 30:
+                if abs(t.x_m) < INCURSION_THRESHOLD_METERS and abs(t.y_m) < INCURSION_THRESHOLD_METERS:
                     self.alerts.append(ASRACSAlert(severity="critical", message=f"Runway incursion risk: {ident}"))
 
     def latest_alerts(self, limit: int = 20) -> List[ASRACSAlert]:
@@ -590,14 +620,14 @@ class MockVORServer:
             srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             srv.bind((self.host, self.port))
             srv.listen(2)
-            srv.settimeout(0.4)
+            srv.settimeout(SERVER_SOCKET_TIMEOUT_SEC)
             while not self._stop.is_set():
                 try:
                     client, _ = srv.accept()
                 except socket.timeout:
                     continue
                 with client:
-                    data = client.recv(2048).decode("utf-8", errors="ignore").strip().upper()
+                    data = client.recv(MOCK_SERVER_RECV_SIZE).decode("utf-8", errors="ignore").strip().upper()
                     resp = self._response(data)
                     client.sendall((resp + "\n").encode("utf-8"))
 
@@ -609,7 +639,7 @@ class MockVORServer:
             return "WKV"
         if "HEALTH" in cmd:
             return "NOMINAL"
-        return f"DDM={random.uniform(-0.155,0.155):.3f};SDM=40.0;RF=-58.0"
+        return f"DDM={random.uniform(DDM_MIN, DDM_MAX):.3f};SDM={NOMINAL_SDM};RF={NOMINAL_RF_DBM}"
 
 
 class LDAFileConnection:
@@ -704,8 +734,8 @@ class DataAcquisitionThread(threading.Thread):
                 station_icao="FAWK",
                 bearing_deg=float(vals.get("BRG", 0.0)),
                 ddm=float(vals.get("DDM", 0.0)),
-                sdm=float(vals.get("SDM", 40.0)),
-                rf_dbm=float(vals.get("RF", -60.0)),
+                sdm=float(vals.get("SDM", NOMINAL_SDM)),
+                rf_dbm=float(vals.get("RF", NOMINAL_RF_DBM)),
             )
         except Exception:
             return None
@@ -828,7 +858,7 @@ class VORAirportMonitorApp:
     def stop(self) -> None:
         if self.acq_thread:
             self.acq_thread.stop()
-            self.acq_thread.join(timeout=2.0)
+            self.acq_thread.join(timeout=THREAD_SHUTDOWN_TIMEOUT_SEC)
         self.state.conn_manager.disconnect()
         self.state.sim_engine.stop()
 
@@ -885,7 +915,7 @@ class VORAirportMonitorApp:
 
         timer = QTimer()
         timer.timeout.connect(self._tick_gui)
-        timer.start(1000)
+        timer.start(GUI_REFRESH_INTERVAL_MS)
 
         try:
             return app.exec_()
@@ -1001,7 +1031,7 @@ def cli_self_test() -> int:
 
     logger.info("Loaded %d station records", len(app.state.station_db))
     app.start()
-    time.sleep(1.2)
+    time.sleep(SELF_TEST_WARMUP_SEC)
 
     summary = app.state.processor.summary()
     logger.info("Processor summary: %s", summary)
