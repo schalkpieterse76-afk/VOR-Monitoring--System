@@ -1,6 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 # PyInstaller spec file for CVOR1.py
-# Generated for VOR / ASRACS / SAAF Monitoring System v5.2
+# Generated for VOR / ASRACS / SAAF Monitoring System v5.3
 
 block_cipher = None
 
