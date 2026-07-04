@@ -1727,7 +1727,7 @@ if HAS_QT:
             outline = [(-34.8, 18.4), (-31.0, 17.5), (-28.0, 16.0), (-25.0, 17.0), (-22.0, 19.0), (-20.0, 21.0), (-18.0, 24.0), (-16.0, 27.0), (-18.0, 31.0), (-22.0, 32.0), (-25.0, 31.0), (-29.0, 29.0), (-32.0, 26.0), (-34.8, 18.4)]
             painter.setPen(QPen(QColor(60, 90, 120), 2))
             painter.setBrush(QBrush(QColor(30, 45, 70)))
-            poly = QPolygon([QPoint(int(self._project(lat, lon)[0]), int(self._project(lat, lon)[1])) for lat, lon in outline])
+            poly = QPolygon([QPoint(int(px), int(py)) for lat, lon in outline for px, py in [self._project(lat, lon)]])
             painter.drawPolygon(poly)
             for code, base in SAAF_BASES.items():
                 x, y = self._project(base["lat"], base["lon"])
@@ -2003,7 +2003,12 @@ if HAS_QT:
         def _toggle_mock_server(self) -> None:
             """Start or stop the built-in mock TCP server."""
             if self._mock_server is None:
-                self._mock_server = MockVORTCPServer(host=self.host_edit.text().strip(), port=int(self.port_edit.text().strip() or "5000"), station_key="JNB")
+                try:
+                    port = int(self.port_edit.text().strip() or "5000")
+                except ValueError:
+                    self.connection_status.setText("Invalid port number")
+                    return
+                self._mock_server = MockVORTCPServer(host=self.host_edit.text().strip(), port=port, station_key="JNB")
                 self._mock_server.start()
                 self.connection_status.setText("Mock server running")
                 self.mock_button.setText("Stop Mock Server")
@@ -2016,7 +2021,11 @@ if HAS_QT:
         def _connect_tcp(self) -> None:
             """Connect to the configured TCP endpoint and start acquisition."""
             host = self.host_edit.text().strip()
-            port = int(self.port_edit.text().strip() or "5000")
+            try:
+                port = int(self.port_edit.text().strip() or "5000")
+            except ValueError:
+                self.connection_status.setText("Invalid port number")
+                return
             ok = self._connection.connect_tcp(host, port)
             if not ok:
                 self.connection_status.setText("TCP connect failed")
