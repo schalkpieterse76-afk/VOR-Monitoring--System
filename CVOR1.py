@@ -44,18 +44,18 @@ from typing import Any, Deque, Dict, Iterable, List, Optional, Sequence, Tuple
 
 try:
     import yaml
-except Exception:
+except ImportError:
     yaml = None
 
 try:
     import numpy as np
-except Exception:
+except ImportError:
     np = None
 
 try:
     import serial
     import serial.tools.list_ports
-except Exception:
+except ImportError:
     serial = None
 
 PYQT_AVAILABLE = True
@@ -104,10 +104,10 @@ try:
     )
     try:
         from PyQt5.QtChart import QChart, QChartView, QLineSeries
-    except Exception:
+    except ImportError:
         CHART_AVAILABLE = False
         QChart = QChartView = QLineSeries = None
-except Exception:
+except ImportError:
     PYQT_AVAILABLE = False
     CHART_AVAILABLE = False
 
@@ -442,7 +442,7 @@ except Exception:
 
 try:
     from OpenGL import GL, GLU
-except Exception:
+except ImportError:
     OPENGL_AVAILABLE = False
     GL = None
     GLU = None
@@ -824,7 +824,7 @@ class LDAFileParser:
         text_chunks = []
         try:
             text_chunks.append(data.decode("utf-8"))
-        except Exception:
+        except UnicodeDecodeError:
             text_chunks.append(data.decode("latin-1", errors="ignore"))
         extracted = self._extract_binary_strings(data)
         text_chunks.extend(extracted)
@@ -884,7 +884,7 @@ class LDAFileParser:
                     value = float(freq)
                     if 75.0 <= value <= 120.0:
                         parsed["frequencies"].append(value)
-                except Exception:
+                except ValueError:
                     pass
             match = self._TEXT_PATTERN.search(line)
             if not match:
@@ -894,7 +894,7 @@ class LDAFileParser:
             key_upper = key.upper()
             try:
                 numeric = float(value.split()[0])
-            except Exception:
+            except (ValueError, IndexError):
                 numeric = None
             if numeric is not None:
                 if any(token in key_upper for token in ["NOMINAL", "MOD", "LEVEL", "POWER"]):
@@ -1057,7 +1057,7 @@ class MockVORTCPServer:
         if self._socket:
             try:
                 self._socket.close()
-            except Exception:
+            except OSError:
                 pass
             self._socket = None
         if self._thread:
@@ -1104,7 +1104,7 @@ class MockVORTCPServer:
                     time.sleep(0.25)
         try:
             server.close()
-        except Exception:
+        except OSError:
             pass
 
 
@@ -1165,12 +1165,12 @@ class VORConnectionHandler:
         if self.sock:
             try:
                 self.sock.close()
-            except Exception:
+            except OSError:
                 pass
         if self.serial_port:
             try:
                 self.serial_port.close()
-            except Exception:
+            except OSError:
                 pass
         self.sock = None
         self.serial_port = None
@@ -1411,26 +1411,26 @@ if PYQT_AVAILABLE:
             for taxiway in JNBAirportLayout.TAXIWAYS:
                 x, y, w, h = JNBAirportLayout.rect_to_screen(taxiway, width, height)
                 painter.setBrush(QBrush(QColor(55, 65, 81)))
-                painter.drawRect(int(x), int(y), int(w), int(h))
+                painter.drawRect(x, y, w, h)
                 painter.setPen(QPen(QColor(229, 231, 235), 1))
-                painter.drawText(int(x), int(y - 14), int(max(w, 50)), int(14), Qt.AlignCenter, taxiway["name"])
+                painter.drawText(x, y - 14, max(w, 50), 14, Qt.AlignCenter, taxiway["name"])
                 painter.setPen(QPen(QColor(75, 85, 99), 1))
             for terminal in JNBAirportLayout.TERMINALS:
                 x, y, w, h = JNBAirportLayout.rect_to_screen(terminal, width, height)
                 painter.setBrush(QBrush(QColor(30, 41, 59)))
-                painter.drawRect(int(x), int(y), int(w), int(h))
+                painter.drawRect(x, y, w, h)
                 painter.setPen(QPen(QColor(148, 163, 184), 1))
-                painter.drawText(int(x), int(y), int(w), int(h), Qt.AlignCenter, terminal["name"])
+                painter.drawText(x, y, w, h, Qt.AlignCenter, terminal["name"])
             for runway_name, runway in JNBAirportLayout.RUNWAYS.items():
                 x, y, w, h = JNBAirportLayout.rect_to_screen(runway, width, height)
                 painter.setBrush(QBrush(QColor(38, 38, 38)))
                 painter.setPen(QPen(QColor(180, 180, 180), 2))
-                painter.drawRect(int(x), int(y), int(w), int(h))
+                painter.drawRect(x, y, w, h)
                 center_y = int(y + h / 2)
                 painter.setPen(QPen(QColor(250, 250, 250), 2, Qt.DashLine))
                 painter.drawLine(int(x + 10), int(center_y), int(x + w - 10), int(center_y))
                 painter.setPen(QPen(QColor(255, 255, 255), 1))
-                painter.drawText(int(x), int(y - 18), int(w), int(18), Qt.AlignCenter, runway_name)
+                painter.drawText(x, int(y - 18), w, 18, Qt.AlignCenter, runway_name)
             targets, alerts = self.engine.snapshot()
             for target in targets:
                 sx, sy = JNBAirportLayout.world_to_screen(target.x, target.y, width, height)
