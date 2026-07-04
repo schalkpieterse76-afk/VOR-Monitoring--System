@@ -1,0 +1,17 @@
+2026-07-04 19:01:52,975 - __main__ - INFO - SELF-TEST morse-sos          PASS
+2026-07-04 19:01:52,975 - __main__ - INFO - SELF-TEST african-count      PASS
+2026-07-04 19:01:52,975 - __main__ - INFO - SELF-TEST master-count       PASS
+2026-07-04 19:01:52,975 - __main__ - INFO - SELF-TEST layout-count       PASS
+2026-07-04 19:01:52,975 - __main__ - INFO - SELF-TEST terrain-count      PASS
+2026-07-04 19:01:52,975 - __main__ - INFO - SELF-TEST glide-target       PASS
+2026-07-04 19:01:52,975 - __main__ - INFO - SELF-TEST lda-parser-init    PASS
+2026-07-04 19:01:52,975 - __main__ - INFO - SELF-TEST sim-engine-init    PASS
+2026-07-04 19:01:52,975 - __main__ - INFO - SELF-TEST asracs-init        PASS
+2026-07-04 19:01:52,975 - __main__ - INFO - SELF-TEST record-init        PASS
+2026-07-04 19:01:52,975 - __main__ - INFO - SELF-TEST morse-numbers      PASS
+2026-07-04 19:01:52,975 - __main__ - INFO - SELF-TEST saaf-fields        PASS
+2026-07-04 19:01:52,975 - __main__ - INFO - SELF-TEST africa-fields      PASS
+2026-07-04 19:01:52,975 - __main__ - INFO - SELF-TEST layout-fields      PASS
+2026-07-04 19:01:52,975 - __main__ - INFO - SELF-TEST terrain-samples    PASS
+2026-07-04 19:01:52,975 - __main__ - INFO - SELF-TEST parser-parse       PASS
+2026-07-04 19:01:52,975 - __main__ - INFO - SELF-TEST sim-sentence       PASS
