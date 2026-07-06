@@ -448,10 +448,13 @@ except ImportError:
     GLU = None
 
 LOG_PATH = Path(__file__).with_name("vor_monitor.log")
+LOG_HANDLERS = [logging.StreamHandler()]
+if "--self-test" not in sys.argv:
+    LOG_HANDLERS.insert(0, logging.FileHandler(str(LOG_PATH)))
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.FileHandler(str(LOG_PATH)), logging.StreamHandler()],
+    handlers=LOG_HANDLERS,
 )
 logger = logging.getLogger(__name__)
 
