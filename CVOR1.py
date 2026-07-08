@@ -146,7 +146,7 @@ class VORData:
     station: str = ""
     bearing: float = 0.0
     signal_strength: float = 0.0
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     frequency: float = 0.0
     ident: str = ""
     deviation: float = 0.0
@@ -164,6 +164,18 @@ class AircraftData:
     heading: float = 0.0
     x: float = 0.0
     y: float = 0.0
+
+
+# ---------------------------------------------------------------------------
+# Utility helpers
+# ---------------------------------------------------------------------------
+
+def _safe_float(s: str) -> Optional[float]:
+    """Return float(s) or None if s cannot be parsed as a float."""
+    try:
+        return float(s)
+    except (ValueError, TypeError):
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -205,33 +217,42 @@ class LDAFileParser:
                 if len(parts) == 2:
                     self._station_type = parts[1].strip()
             elif "localizer" in low and "freq" in low:
-                nums = [t for t in line.split() if t.replace(".", "").isdigit()]
-                if nums:
-                    self._localizer_freq = float(nums[0])
+                val = next((_safe_float(t) for t in line.split() if _safe_float(t) is not None), None)
+                if val is not None:
+                    self._localizer_freq = val
             elif "glide" in low and "freq" in low:
-                nums = [t for t in line.split() if t.replace(".", "").isdigit()]
-                if nums:
-                    self._glideslope_freq = float(nums[0])
+                val = next((_safe_float(t) for t in line.split() if _safe_float(t) is not None), None)
+                if val is not None:
+                    self._glideslope_freq = val
             elif "waveform" in low and ":" in line:
                 name = line.split(":", 1)[-1].strip()
                 if name and len(self._waveform_names) < 8:
                     self._waveform_names.append(name)
             elif "crs ddm" in low:
-                nums = [t for t in line.split() if t.replace(".", "").lstrip("-").isdigit()]
-                if nums:
-                    self._nominal_values["crs_ddm"] = float(nums[0])
+                val = next((_safe_float(t) for t in line.split() if _safe_float(t) is not None), None)
+                if val is not None:
+                    self._nominal_values["crs_ddm"] = val
             elif "crs sdm" in low:
-                nums = [t for t in line.split() if t.replace(".", "").lstrip("-").isdigit()]
-                if nums:
-                    self._nominal_values["crs_sdm"] = float(nums[0])
+                val = next(
+                    (_safe_float(t) for t in line.split() if _safe_float(t) is not None),
+                    None,
+                )
+                if val is not None:
+                    self._nominal_values["crs_sdm"] = val
             elif "clr ddm" in low:
-                nums = [t for t in line.split() if t.replace(".", "").lstrip("-").isdigit()]
-                if nums:
-                    self._nominal_values["clr_ddm"] = float(nums[0])
+                val = next(
+                    (_safe_float(t) for t in line.split() if _safe_float(t) is not None),
+                    None,
+                )
+                if val is not None:
+                    self._nominal_values["clr_ddm"] = val
             elif "clr sdm" in low:
-                nums = [t for t in line.split() if t.replace(".", "").lstrip("-").isdigit()]
-                if nums:
-                    self._nominal_values["clr_sdm"] = float(nums[0])
+                val = next(
+                    (_safe_float(t) for t in line.split() if _safe_float(t) is not None),
+                    None,
+                )
+                if val is not None:
+                    self._nominal_values["clr_sdm"] = val
 
     def _parse_binary_section(self, raw: bytes) -> None:
         # Look for ILS frequency embedded in binary section
@@ -308,7 +329,8 @@ class LDABinaryFileParser:
                         distance_nm=float(parts[7]) if len(parts) > 7 else 0.0,
                     )
                     records.append(rec)
-                except (ValueError, IndexError):
+                except (ValueError, IndexError) as exc:
+                    logger.debug("LDABinaryFileParser: skipping malformed line %r – %s", line, exc)
                     continue
         return records
 
@@ -1071,7 +1093,7 @@ if _GUI_OK:
 
             self.lda_table.setRowCount(len(filtered))
             for row, rec in enumerate(filtered):
-                self.lda_table.setItem(row, 0, QTableWidgetItem(rec.timestamp.strftime("%Y-%m-%dT%H:%M:%S")))
+                self.lda_table.setItem(row, 0, QTableWidgetItem(rec.timestamp.isoformat()))
                 self.lda_table.setItem(row, 1, QTableWidgetItem(rec.station_key))
                 self.lda_table.setItem(row, 2, QTableWidgetItem(rec.ident))
                 self.lda_table.setItem(row, 3, QTableWidgetItem(f"{rec.frequency_mhz:.2f}"))
@@ -1110,11 +1132,13 @@ if _GUI_OK:
                 if idx >= 0:
                     self.terrain_station_combo.setCurrentIndex(idx)
 
-            # Update approach display
+            # Update approach display – derive a nominal altitude from distance on a 3° path
             if hasattr(self, "approach_display"):
                 gs_detector = GlideSlopeDetector(3.0)
+                # Estimate altitude on a standard 3° glide path from distance
+                nominal_alt_ft = math.tan(math.radians(3.0)) * rec.distance_nm * 6076.12
                 gs_error = gs_detector.calculate_glide_slope_error(
-                    aircraft_alt_ft=rec.bearing_deg * 10,
+                    aircraft_alt_ft=nominal_alt_ft,
                     distance_nm=rec.distance_nm,
                 )
                 self.approach_display.update_data(gs_error, rec.deviation_deg, rec.distance_nm)
@@ -1223,7 +1247,7 @@ if _GUI_OK:
                             safety = {"risk": "N/A", "obstacle_count": 0}
 
                         writer.writerow([
-                            rec.timestamp.strftime("%Y-%m-%dT%H:%M:%S"),
+                            rec.timestamp.isoformat(),
                             rec.station_key,
                             rec.ident,
                             f"{rec.frequency_mhz:.2f}",
